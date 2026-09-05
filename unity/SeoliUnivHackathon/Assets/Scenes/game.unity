@@ -4576,7 +4576,7 @@ MonoBehaviour:
   speedMultiplier: 1
   spawnIntervalMultiplier: 1
   invincible: 0
-  nearMissScore: 25
+  nearMissScore: 500
   hazardPrefabs:
   - {fileID: 8456034808142207107, guid: 6929b21af56434943b1dd0b2c33ddde4, type: 3}
   - {fileID: 5713100759270662503, guid: 41cdbca508f34bc4eaba2543a9bfd183, type: 3}
