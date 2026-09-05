@@ -27,6 +27,7 @@ namespace SalmonRun
         [SerializeField] private Transform hazardRoot;
         [SerializeField] private Transform player;
         [SerializeField] private SpriteRenderer playerBody;
+        [SerializeField] private SalmonPlayerAnimator playerAnimator;
         [SerializeField] private SpriteRenderer waterRenderer;
         [Tooltip("0 = 왼쪽 강둑, 1 = 오른쪽 강둑")]
         [SerializeField] private SpriteRenderer[] bankRenderers = new SpriteRenderer[0];
@@ -225,7 +226,10 @@ namespace SalmonRun
 
             forwardPulse += dt * 4f;
             if (player != null && state != GameState.Playing)
+            {
                 player.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(forwardPulse) * 3f);
+                if (playerAnimator != null) playerAnimator.SpeedScale = 0.65f;
+            }
         }
 
         private void ReadMovement(float dt)
@@ -297,10 +301,20 @@ namespace SalmonRun
             var desiredScale = new Vector3(1f - movementStretch * 0.08f + jumpArc * 0.22f,
                 1f + movementStretch * 0.13f + jumpArc * 0.38f, 1f);
             player.localScale = Vector3.Lerp(player.localScale, desiredScale, dt * 14f);
+            // 스프라이트라서 평소에는 흰색(원본 그대로), 피격 때만 붉게 점멸시킨다
             if (playerBody != null)
                 playerBody.color = hurtFlash > 0f && Mathf.FloorToInt(hurtFlash * 18f) % 2 == 0
-                    ? Color.white
-                    : new Color(1f, 0.36f, 0.30f);
+                    ? new Color(1f, 0.35f, 0.30f)
+                    : Color.white;
+
+            // 좌우로 헤엄치면 진행 방향으로 살짝 눕는다
+            var tilt = Mathf.Clamp(-playerVelocity.x / 6.4f, -1f, 1f) * 20f;
+            player.localRotation = Quaternion.Lerp(player.localRotation,
+                Quaternion.Euler(0f, 0f, tilt), dt * 10f);
+
+            // 빨리 헤엄칠수록, 점프 중일수록 꼬리가 빨라진다
+            if (playerAnimator != null)
+                playerAnimator.SpeedScale = 1f + movementStretch * 0.9f + (jumpTimer > 0f ? 0.8f : 0f);
 
             if (stage == 1)
             {

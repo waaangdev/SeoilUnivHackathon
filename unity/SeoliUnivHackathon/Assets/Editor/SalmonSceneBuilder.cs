@@ -35,6 +35,12 @@ public static class SalmonSceneBuilder
     const float BackgroundOffsetX = -0.76f;
     const int BackgroundTileCount = 3;
 
+    // 플레이어 유영 시트 — 1792×256, 256×256 셀 7프레임.
+    // PPU 110 이면 연어가 약 1.23 × 1.86 유닛으로, 예전 도형 연어와 같은 크기가 된다.
+    const string PlayerSheetPath = "Assets/Art/Sprites/player-Sheet.png";
+    const int PlayerFrameSize = 256;
+    const float PlayerPpu = 110f;
+
     static Sprite white, circle, fog;
     static TMP_FontAsset font;
 
@@ -124,6 +130,7 @@ public static class SalmonSceneBuilder
         so.FindProperty("hazardRoot").objectReferenceValue = hazardRoot;
         so.FindProperty("player").objectReferenceValue = player.transform;
         so.FindProperty("playerBody").objectReferenceValue = player.transform.Find("Body").GetComponent<SpriteRenderer>();
+        so.FindProperty("playerAnimator").objectReferenceValue = player.GetComponent<SalmonPlayerAnimator>();
         so.FindProperty("waterRenderer").objectReferenceValue = water.GetComponent<SpriteRenderer>();
         SetArray(so.FindProperty("bankRenderers"), leftBank.GetComponent<SpriteRenderer>(), rightBank.GetComponent<SpriteRenderer>());
         SetArray(so.FindProperty("laneRenderers"), lanes.ToArray());
@@ -230,6 +237,27 @@ public static class SalmonSceneBuilder
 
     static void BuildPlayerPrefab()
     {
+        var frames = LoadPlayerFrames();
+        if (frames.Length > 0)
+        {
+            var go = new GameObject("Player Salmon");
+            var bodyGo = new GameObject("Body");
+            bodyGo.transform.SetParent(go.transform, false);
+            var sr = bodyGo.AddComponent<SpriteRenderer>();
+            sr.sprite = frames[0];
+            sr.sortingOrder = 20;
+
+            var animator = go.AddComponent<SalmonPlayerAnimator>();
+            var aso = new SerializedObject(animator);
+            aso.FindProperty("body").objectReferenceValue = sr;
+            SetArray(aso.FindProperty("frames"), frames);
+            aso.ApplyModifiedPropertiesWithoutUndo();
+
+            SavePrefab(go, PlayerPrefabPath);
+            return;
+        }
+
+        Debug.LogWarning("[SalmonSceneBuilder] " + PlayerSheetPath + " 를 못 읽어 도형 연어로 대체합니다.");
         var root = new GameObject("Player Salmon");
         WorldCircle("Body", root.transform, Vector2.zero, new Vector2(1.15f, 1.75f), new Color(1f, 0.36f, 0.30f), 20);
         WorldCircle("Belly", root.transform, new Vector2(0f, -0.15f), new Vector2(0.65f, 1.15f), new Color(1f, 0.68f, 0.52f), 21);
@@ -770,6 +798,62 @@ public static class SalmonSceneBuilder
         File.WriteAllBytes(path, tex.EncodeToPNG());
         Object.DestroyImmediate(tex);
         AssetDatabase.ImportAsset(path);
+    }
+
+    /// <summary>
+    /// 스프라이트 시트를 가로 방향 격자로 다시 슬라이스한다.
+    /// 자동 슬라이스(Automatic)는 프레임마다 rect 와 피벗이 달라져 재생할 때 그림이 덜컹거리고,
+    /// 여백의 점 하나까지 조각으로 잡아내므로 격자로 고정해야 한다.
+    /// </summary>
+    static Sprite[] LoadPlayerFrames()
+    {
+        var importer = AssetImporter.GetAtPath(PlayerSheetPath) as TextureImporter;
+        if (importer == null)
+        {
+            Debug.LogWarning("[SalmonSceneBuilder] 시트를 찾을 수 없습니다: " + PlayerSheetPath);
+            return new Sprite[0];
+        }
+
+        var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(PlayerSheetPath);
+        var count = texture != null ? texture.width / PlayerFrameSize : 0;
+        if (count < 1) return new Sprite[0];
+
+        var needsSlice = importer.spriteImportMode != SpriteImportMode.Multiple ||
+                         importer.spritesheet == null ||
+                         importer.spritesheet.Length != count ||
+                         !Mathf.Approximately(importer.spritePixelsPerUnit, PlayerPpu);
+        if (needsSlice)
+        {
+            var sheet = new SpriteMetaData[count];
+            for (var i = 0; i < count; i++)
+            {
+                sheet[i] = new SpriteMetaData
+                {
+                    name = "player_" + i,
+                    rect = new Rect(i * PlayerFrameSize, 0f, PlayerFrameSize, texture.height),
+                    alignment = (int)SpriteAlignment.Center,
+                    pivot = new Vector2(0.5f, 0.5f)
+                };
+            }
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Multiple;
+            importer.spritePixelsPerUnit = PlayerPpu;
+            importer.filterMode = FilterMode.Bilinear;
+            importer.mipmapEnabled = false;
+            importer.alphaIsTransparency = true;
+            importer.spritesheet = sheet;
+            importer.SaveAndReimport();
+        }
+
+        // Multiple 모드에서는 LoadAssetAtPath<Sprite> 가 null 을 준다 — 전부 읽어서 이름순으로 세운다
+        var loaded = new List<Sprite>();
+        foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(PlayerSheetPath))
+            if (asset is Sprite sprite) loaded.Add(sprite);
+        loaded.Sort(delegate(Sprite a, Sprite b)
+        {
+            return EditorUtility.NaturalCompare(a.name, b.name);
+        });
+        return loaded.ToArray();
     }
 
     static void ConfigureSprite(string path, float ppu)
