@@ -827,7 +827,12 @@ namespace SalmonRun
                     break;
                 case HazardKind.BearSwipe:
                     hazard.Velocity = (position.x < 0f ? Vector2.right : Vector2.left) * 8.2f;
-                    ShowEvent("강둑에서 곰이 공격합니다!", 1.1f);
+                    // 그림이 오른쪽을 보고 있어, 왼쪽으로 덮칠 때는 통째로 좌우를 뒤집는다.
+                    // (자식이 90° 돌아가 있어 SpriteRenderer.flipX 를 쓰면 위아래로 뒤집힌다)
+                    var facing = hazard.transform.localScale;
+                    facing.x = Mathf.Abs(facing.x) * (position.x < 0f ? 1f : -1f);
+                    hazard.transform.localScale = facing;
+                    ShowEvent("강둑에서 독수리가 덮칩니다!", 1.1f);
                     break;
                 case HazardKind.Fog:
                     hazard.Velocity = Vector2.up * ScrollSpeed;
