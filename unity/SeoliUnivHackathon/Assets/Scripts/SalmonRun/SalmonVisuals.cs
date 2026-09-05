@@ -66,6 +66,51 @@ namespace SalmonRun
         }
 
         private static Sprite circleSprite;
+        private static Sprite fogSprite;
+        private static Texture2D fogTexture;
+
+        public static Texture2D FogTexture
+        {
+            get
+            {
+                if (fogTexture == null) _ = FogSprite;
+                return fogTexture;
+            }
+        }
+
+        public static Sprite FogSprite
+        {
+            get
+            {
+                if (fogSprite != null) return fogSprite;
+                const int width = 192;
+                const int height = 128;
+                fogTexture = new Texture2D(width, height, TextureFormat.RGBA32, false)
+                {
+                    name = "Runtime Layered Fog",
+                    filterMode = FilterMode.Bilinear,
+                    wrapMode = TextureWrapMode.Clamp
+                };
+                var pixels = new Color[width * height];
+                for (var y = 0; y < height; y++)
+                for (var x = 0; x < width; x++)
+                {
+                    var u = x / (float)width;
+                    var v = y / (float)height;
+                    var broad = Mathf.PerlinNoise(u * 3.2f + 4.1f, v * 3.2f + 7.6f);
+                    var detail = Mathf.PerlinNoise(u * 8.5f + 12.7f, v * 8.5f + 2.3f);
+                    var wisps = Mathf.SmoothStep(0.2f, 0.9f, broad * 0.72f + detail * 0.28f);
+                    var edgeFade = Mathf.SmoothStep(0f, 0.18f, v) * Mathf.SmoothStep(0f, 0.18f, 1f - v);
+                    var alpha = Mathf.Lerp(0.58f, 1f, wisps) * edgeFade;
+                    pixels[y * width + x] = new Color(0.83f, 0.88f, 0.91f, alpha);
+                }
+                fogTexture.SetPixels(pixels);
+                fogTexture.Apply();
+                fogSprite = Sprite.Create(fogTexture, new Rect(0, 0, width, height), Vector2.one * 0.5f, 16f);
+                return fogSprite;
+            }
+        }
+
         private static Sprite MakeCircleSprite()
         {
             if (circleSprite != null) return circleSprite;
