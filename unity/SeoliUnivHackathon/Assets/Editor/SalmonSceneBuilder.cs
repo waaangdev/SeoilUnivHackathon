@@ -30,6 +30,15 @@ public static class SalmonSceneBuilder
     const string RiverBgPath = "Assets/Art/Sprites/background1.png";
     const string CoastBgPath = "Assets/Art/Sprites/background2.png";
     const string SeaBgPath = "Assets/Art/Sprites/background3.png";
+    const string LobbyMusicPath = "Assets/Resources/Audio/Morning_s_First_Leap.mp3";
+    const string GameplayMusicPath = "Assets/Resources/Audio/Morning_at_the_Riverbend.mp3";
+    const string GameOverMusicPath = "Assets/Resources/Audio/Light_on_the_Riverbed.mp3";
+    const string MovementSoundPath = "Assets/Resources/Audio/MovementSwim.mp3";
+    const string JumpSoundPath = "Assets/Resources/Audio/JumpSplash.mp3";
+    const string LobbyBackgroundPath = "Assets/Resources/UI/LobbyBackground.png";
+    const string LobbyStartButtonPath = "Assets/Resources/UI/LobbyStartButton.png";
+    const string SoundButtonPath = "Assets/Resources/UI/SoundSettingsButton.png";
+    const string ButtonClickSoundPath = "Assets/Resources/Audio/UIButtonClick.mp3";
     const float BackgroundPpu = 27.7f;
     // 강 그림의 물길(293~690px)이 화면 중앙에 오도록 타일 전체를 살짝 왼쪽으로
     const float BackgroundOffsetX = -0.76f;
@@ -294,28 +303,52 @@ public static class SalmonSceneBuilder
 
         var subtitleColor = new Color(0.85f, 0.96f, 1f);
         var smallColor = new Color(0.85f, 0.94f, 0.97f);
+        var lobbyBackgroundArt = AssetDatabase.LoadAssetAtPath<Sprite>(LobbyBackgroundPath);
+        var lobbyStartButtonArt = AssetDatabase.LoadAssetAtPath<Sprite>(LobbyStartButtonPath);
+        var soundButtonArt = AssetDatabase.LoadAssetAtPath<Sprite>(SoundButtonPath);
+        var buttonClickSound = AssetDatabase.LoadAssetAtPath<AudioClip>(ButtonClickSoundPath);
 
         // ---------- 로비 ----------
         var lobby = Group("Lobby Panel", c);
-        Full(Img("Dim", lobby, new Color(0.01f, 0.08f, 0.14f, 0.34f)));
+        Full(Img("Dim", lobby, lobbyBackgroundArt != null ? Color.white : new Color(0.01f, 0.08f, 0.14f, 0.34f), lobbyBackgroundArt));
         Text("Title", lobby, new Rect(360, 160, 1200, 110), "SALMON RUN", 78, Color.white, TextAlignmentOptions.Center, true);
         Text("Subtitle", lobby, new Rect(440, 272, 1040, 55), "거슬러 올라가, 고향으로", 28, subtitleColor, TextAlignmentOptions.Center);
         Panel("Panel", lobby, new Rect(610, 400, 700, 360));
 
         var menu = Group("Menu Group", lobby);
-        var startBtn = MakeButton("Start Button", menu, new Rect(735, 470, 450, 82), "게임 시작");
-        var settingsBtn = MakeButton("Settings Button", menu, new Rect(735, 575, 450, 70), "설정");
-        Text("Hint", menu, new Rect(650, 685, 620, 40), "WASD / 방향키 이동  ·  SPACE 점프", 27, Color.white, TextAlignmentOptions.Center, true);
+        var startBtn = MakeButton("Start Button", menu, new Rect(980, 500, 620, 384), lobbyStartButtonArt == null ? "게임 시작" : "", lobbyStartButtonArt);
+        var settingsBtn = MakeButton("Settings Button", menu, new Rect(1235, 785, 110, 110), soundButtonArt == null ? "음향" : "", soundButtonArt);
+        Text("Hint", menu, new Rect(760, 982, 1000, 38), "WASD / 방향키 이동  ·  SPACE 점프  ·  ESC 일시정지 / 음향 설정", 27, Color.white, TextAlignmentOptions.Center, true);
 
         var settings = Group("Settings Group", lobby);
         Text("Settings Title", settings, new Rect(705, 438, 510, 50), "사운드 설정", 27, Color.white, TextAlignmentOptions.Center, true);
-        Text("Volume Label", settings, new Rect(700, 520, 180, 42), "전체 음량", 21, smallColor, TextAlignmentOptions.Left);
+        Text("Volume Label", settings, new Rect(700, 520, 180, 42), "BGM 음량", 21, smallColor, TextAlignmentOptions.Left);
         var slider = MakeSlider("Volume Slider", settings, new Rect(880, 530, 290, 30));
         var volumeText = Text("Volume Value", settings, new Rect(1178, 516, 70, 42), "75%", 21, smallColor, TextAlignmentOptions.Left);
-        var backBtn = MakeButton("Back Button", settings, new Rect(800, 630, 320, 65), "돌아가기");
+        Text("Effects Volume Label", settings, new Rect(700, 580, 180, 42), "효과음 음량", 21, smallColor, TextAlignmentOptions.Left);
+        var effectsSlider = MakeSlider("Effects Volume Slider", settings, new Rect(880, 590, 290, 30));
+        effectsSlider.value = 0.85f;
+        var effectsVolumeText = Text("Effects Volume Value", settings, new Rect(1178, 576, 70, 42), "85%", 21, smallColor, TextAlignmentOptions.Left);
+        var backBtn = MakeButton("Back Button", settings, new Rect(800, 660, 320, 65), "돌아가기");
         settings.gameObject.SetActive(false);
 
-        var lobbyBest = Text("Best Score", lobby, new Rect(710, 815, 500, 45), "최고 점수  0", 27, Color.white, TextAlignmentOptions.Center, true);
+        var lobbyBest = Text("Best Score", lobby, new Rect(1080, 918, 420, 42), "최고 점수  0", 27, Color.white, TextAlignmentOptions.Center, true);
+
+        // ---------- 일시정지 ----------
+        var pause = Group("Pause Panel", c);
+        Full(Img("Dim", pause, new Color(0.005f, 0.018f, 0.035f, 0.78f))).raycastTarget = true;
+        Panel("Panel", pause, new Rect(610, 400, 700, 360));
+        Text("Pause Title", pause, new Rect(705, 438, 510, 50), "일시정지", 27, Color.white, TextAlignmentOptions.Center, true);
+        Text("Volume Label", pause, new Rect(700, 520, 180, 42), "BGM 음량", 21, smallColor, TextAlignmentOptions.Left);
+        var pauseSlider = MakeSlider("Volume Slider", pause, new Rect(880, 530, 290, 30));
+        var pauseVolumeText = Text("Volume Value", pause, new Rect(1178, 516, 70, 42), "75%", 21, smallColor, TextAlignmentOptions.Left);
+        Text("Effects Volume Label", pause, new Rect(700, 580, 180, 42), "효과음 음량", 21, smallColor, TextAlignmentOptions.Left);
+        var pauseEffectsSlider = MakeSlider("Effects Volume Slider", pause, new Rect(880, 590, 290, 30));
+        pauseEffectsSlider.value = 0.85f;
+        var pauseEffectsVolumeText = Text("Effects Volume Value", pause, new Rect(1178, 576, 70, 42), "85%", 21, smallColor, TextAlignmentOptions.Left);
+        var resumeBtn = MakeButton("Resume Button", pause, new Rect(660, 660, 280, 65), "게임 계속");
+        var pauseLobbyBtn = MakeButton("Pause Lobby Button", pause, new Rect(980, 660, 280, 65), "로비로 가기");
+        pause.gameObject.SetActive(false);
 
         // ---------- HUD ----------
         var hud = Group("HUD Panel", c);
@@ -383,7 +416,20 @@ public static class SalmonSceneBuilder
         Bind(so, "backButton", backBtn);
         Bind(so, "volumeSlider", slider);
         Bind(so, "volumeText", volumeText);
+        Bind(so, "effectsVolumeSlider", effectsSlider);
+        Bind(so, "effectsVolumeText", effectsVolumeText);
         Bind(so, "lobbyBestScoreText", lobbyBest);
+        Bind(so, "lobbyBackgroundArtwork", lobbyBackgroundArt);
+        Bind(so, "startButtonArtwork", lobbyStartButtonArt);
+        Bind(so, "soundButtonArtwork", soundButtonArt);
+        Bind(so, "buttonClickSound", buttonClickSound);
+        Bind(so, "pausePanel", pause.gameObject);
+        Bind(so, "pauseVolumeSlider", pauseSlider);
+        Bind(so, "pauseVolumeText", pauseVolumeText);
+        Bind(so, "pauseEffectsVolumeSlider", pauseEffectsSlider);
+        Bind(so, "pauseEffectsVolumeText", pauseEffectsVolumeText);
+        Bind(so, "resumeButton", resumeBtn);
+        Bind(so, "pauseLobbyButton", pauseLobbyBtn);
         Bind(so, "stageText", stageText);
         Bind(so, "healthFill", healthFill);
         Bind(so, "healthText", healthText);
@@ -484,18 +530,22 @@ public static class SalmonSceneBuilder
         return tmp;
     }
 
-    static Button MakeButton(string name, Transform parent, Rect r, string label)
+    static Button MakeButton(string name, Transform parent, Rect r, string label, Sprite artwork = null)
     {
-        var bg = Img(name, parent, new Color(0.10f, 0.32f, 0.42f, 0.95f));
+        var bg = Img(name, parent, artwork != null ? Color.white : new Color(0.10f, 0.32f, 0.42f, 0.95f), artwork);
         bg.raycastTarget = true;
+        bg.preserveAspect = artwork != null;
         Place(bg.rectTransform, r);
         var button = bg.gameObject.AddComponent<Button>();
         var colors = button.colors;
         colors.highlightedColor = new Color(1.15f, 1.15f, 1.15f);
         colors.pressedColor = new Color(0.8f, 0.8f, 0.8f);
         button.colors = colors;
-        var text = Text("Label", bg.transform, new Rect(0, 0, r.width, r.height), label, 28, Color.white, TextAlignmentOptions.Center, true);
-        Stretch(text.rectTransform);
+        if (!string.IsNullOrEmpty(label))
+        {
+            var text = Text("Label", bg.transform, new Rect(0, 0, r.width, r.height), label, 28, Color.white, TextAlignmentOptions.Center, true);
+            Stretch(text.rectTransform);
+        }
         return button;
     }
 
