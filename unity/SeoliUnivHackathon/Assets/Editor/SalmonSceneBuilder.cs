@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.IO;
 using SalmonRun;
 using TMPro;
 using UnityEditor;
@@ -10,16 +9,17 @@ using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
 /// <summary>
-/// 예전에 SalmonGame이 런타임에 만들던 오브젝트들을 에셋·씬으로 옮기는 도구.
-///  1. 스프라이트·프리팹 생성 — 흰색/원/안개 PNG, 플레이어 프리팹, 장애물 프리팹 20종
-///  2. 씬 구성 — 카메라, World(물·강둑·길·물결), 플레이어, 캔버스 UI, EventSystem 을 현재 씬에 만들고 SalmonGame에 연결
-/// 다시 실행하면 기존 것을 지우고 새로 만든다.
+/// 씬 구성 — 카메라, World(배경·물·강둑·길·물결), 플레이어, 캔버스 UI, EventSystem 을
+/// 현재 씬에 만들고 SalmonGame 에 연결한다. 다시 실행하면 기존 것을 지우고 새로 만든다.
+///
+/// 프리팹(플레이어·장애물 20종)은 여기서 만들지 않는다 — 프리팹 자체가 원본이다.
+/// 장애물을 고칠 때는 프리팹을 직접 편집한다. 예전의 '스프라이트·프리팹 생성' 메뉴는
+/// 손으로 붙인 아트를 덮어써 버려서 없앴다.
 /// </summary>
 public static class SalmonSceneBuilder
 {
     const string SpriteFolder = "Assets/Art/Sprites/Generated";
     const string WhitePath = SpriteFolder + "/white.png";
-    const string CirclePath = SpriteFolder + "/circle.png";
     const string FogPath = SpriteFolder + "/fog.png";
     const string PlayerPrefabPath = "Assets/Prefabs/Player/PlayerSalmon.prefab";
     const string HazardFolder = "Assets/Prefabs/Hazards";
@@ -35,37 +35,19 @@ public static class SalmonSceneBuilder
     const float BackgroundOffsetX = -0.76f;
     const int BackgroundTileCount = 3;
 
-    // 플레이어 유영 시트 — 1792×256, 256×256 셀 7프레임.
-    // PPU 110 이면 연어가 약 1.23 × 1.86 유닛으로, 예전 도형 연어와 같은 크기가 된다.
-    const string PlayerSheetPath = "Assets/Art/Sprites/player-Sheet.png";
-    const int PlayerFrameSize = 256;
-    const float PlayerPpu = 110f;
-
-    static Sprite white, circle, fog;
+    static Sprite white, fog;
     static TMP_FontAsset font;
 
     // ================================================================ 메뉴
 
-    [MenuItem("Tools/Salmon Run/1. 스프라이트·프리팹 생성")]
-    public static void GenerateAssets()
-    {
-        LoadSprites(create: true);
-        BuildPlayerPrefab();
-        foreach (HazardKind kind in System.Enum.GetValues(typeof(HazardKind)))
-            BuildHazardPrefab(kind);
-        AssetDatabase.SaveAssets();
-        AssetDatabase.Refresh();
-        Debug.Log("[SalmonSceneBuilder] 스프라이트 3개, 플레이어 프리팹, 장애물 프리팹 " +
-                  System.Enum.GetValues(typeof(HazardKind)).Length + "개 생성 완료");
-    }
-
-    [MenuItem("Tools/Salmon Run/2. 씬 구성")]
+    [MenuItem("Tools/Salmon Run/씬 구성")]
     public static void BuildScene()
     {
-        LoadSprites(create: false);
-        if (white == null || circle == null || fog == null)
+        LoadSprites();
+        if (white == null || fog == null)
         {
-            Debug.LogError("[SalmonSceneBuilder] 스프라이트가 없습니다. 먼저 '1. 스프라이트·프리팹 생성'을 실행하세요.");
+            Debug.LogError("[SalmonSceneBuilder] 기본 스프라이트가 없습니다. " +
+                           "Assets/Art/Sprites/Generated 의 white.png · fog.png 를 확인하세요 (git 에 들어 있습니다).");
             return;
         }
         font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath);
@@ -112,7 +94,7 @@ public static class SalmonSceneBuilder
         var playerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
         if (playerPrefab == null)
         {
-            Debug.LogError("[SalmonSceneBuilder] 플레이어 프리팹이 없습니다. 먼저 '1. 스프라이트·프리팹 생성'을 실행하세요.");
+            Debug.LogError("[SalmonSceneBuilder] 플레이어 프리팹이 없습니다: " + PlayerPrefabPath + " (git 에 들어 있습니다).");
             return;
         }
         var player = (GameObject)PrefabUtility.InstantiatePrefab(playerPrefab, world);
@@ -231,191 +213,6 @@ public static class SalmonSceneBuilder
         var go = new GameObject("EventSystem");
         go.AddComponent<EventSystem>();
         go.AddComponent<InputSystemUIInputModule>();
-    }
-
-    // ================================================================ 플레이어 프리팹
-
-    static void BuildPlayerPrefab()
-    {
-        var frames = LoadPlayerFrames();
-        if (frames.Length > 0)
-        {
-            var go = new GameObject("Player Salmon");
-            var bodyGo = new GameObject("Body");
-            bodyGo.transform.SetParent(go.transform, false);
-            var sr = bodyGo.AddComponent<SpriteRenderer>();
-            sr.sprite = frames[0];
-            sr.sortingOrder = 20;
-
-            var animator = go.AddComponent<SalmonPlayerAnimator>();
-            var aso = new SerializedObject(animator);
-            aso.FindProperty("body").objectReferenceValue = sr;
-            SetArray(aso.FindProperty("frames"), frames);
-            aso.ApplyModifiedPropertiesWithoutUndo();
-
-            SavePrefab(go, PlayerPrefabPath);
-            return;
-        }
-
-        Debug.LogWarning("[SalmonSceneBuilder] " + PlayerSheetPath + " 를 못 읽어 도형 연어로 대체합니다.");
-        var root = new GameObject("Player Salmon");
-        WorldCircle("Body", root.transform, Vector2.zero, new Vector2(1.15f, 1.75f), new Color(1f, 0.36f, 0.30f), 20);
-        WorldCircle("Belly", root.transform, new Vector2(0f, -0.15f), new Vector2(0.65f, 1.15f), new Color(1f, 0.68f, 0.52f), 21);
-        var tail = WorldRect("Tail", root.transform, new Vector2(0f, -1f), new Vector2(0.72f, 0.72f), new Color(0.92f, 0.23f, 0.25f), 19);
-        tail.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
-        WorldCircle("Left Eye", root.transform, new Vector2(-0.25f, 0.52f), Vector2.one * 0.16f, Color.white, 22);
-        WorldCircle("Right Eye", root.transform, new Vector2(0.25f, 0.52f), Vector2.one * 0.16f, Color.white, 22);
-        WorldCircle("Left Pupil", root.transform, new Vector2(-0.25f, 0.55f), Vector2.one * 0.07f, new Color(0.06f, 0.09f, 0.14f), 23);
-        WorldCircle("Right Pupil", root.transform, new Vector2(0.25f, 0.55f), Vector2.one * 0.07f, new Color(0.06f, 0.09f, 0.14f), 23);
-        SavePrefab(root, PlayerPrefabPath);
-    }
-
-    // ================================================================ 장애물 프리팹
-
-    static void BuildHazardPrefab(HazardKind kind)
-    {
-        var root = new GameObject(kind.ToString());
-        var hazard = root.AddComponent<SalmonHazard>();
-        hazard.Kind = kind;
-        var t = root.transform;
-
-        switch (kind)
-        {
-            case HazardKind.Seaweed:
-                hazard.Radius = 0.8f;
-                float[] heights = { 1.35f, 1.6f, 1.45f };
-                for (var i = -1; i <= 1; i++)
-                {
-                    var weed = WorldRect("Seaweed", t, new Vector2(i * 0.28f, 0f), new Vector2(0.18f, heights[i + 1]), new Color(0.08f, 0.48f, 0.28f), 5);
-                    weed.transform.localRotation = Quaternion.Euler(0f, 0f, i * 12f);
-                }
-                break;
-            case HazardKind.Branch:
-                hazard.Radius = 1.25f; hazard.Damage = 7f;
-                WorldRect("Branch", t, Vector2.zero, new Vector2(2.5f, 0.28f), new Color(0.35f, 0.18f, 0.07f), 7);
-                break;
-            case HazardKind.Leaf:
-                hazard.Radius = 0f;
-                WorldCircle("Leaf", t, Vector2.zero, new Vector2(1.4f, 0.8f), new Color(0.33f, 0.67f, 0.25f, 0.78f), 28);
-                break;
-            case HazardKind.Jellyfish:
-                hazard.Radius = 0.62f; hazard.Damage = 13f;
-                WorldCircle("Jellyfish", t, Vector2.zero, new Vector2(1.1f, 0.9f), new Color(0.82f, 0.62f, 1f, 0.88f), 8);
-                for (var i = -1; i <= 1; i++) WorldRect("Tentacle", t, new Vector2(i * 0.28f, -0.6f), new Vector2(0.08f, 0.75f), new Color(0.75f, 0.45f, 0.92f), 7);
-                break;
-            case HazardKind.Boulder:
-                hazard.Radius = 1.75f; hazard.Damage = 15f;
-                WorldCircle("Boulder", t, Vector2.zero, new Vector2(3.1f, 2.5f), new Color(0.25f, 0.28f, 0.30f), 8);
-                WorldCircle("Highlight", t, new Vector2(-0.55f, 0.5f), new Vector2(0.65f, 0.4f), new Color(0.42f, 0.44f, 0.43f), 9);
-                break;
-            case HazardKind.Rapid:
-                hazard.Radius = 1.6f; hazard.Velocity = Vector2.right * 0.35f; // 방향은 스폰 시 랜덤
-                for (var i = -1; i <= 1; i++) WorldRect("Rapid", t, new Vector2(0f, i * 0.42f), new Vector2(2.7f, 0.12f), new Color(0.82f, 0.96f, 1f, 0.75f), 3);
-                break;
-            case HazardKind.Log:
-                hazard.Radius = 1.2f; hazard.Damage = 18f; hazard.Velocity = Vector2.down * 2.8f;
-                WorldRect("Log", t, Vector2.zero, new Vector2(2.4f, 0.62f), new Color(0.42f, 0.23f, 0.08f), 9);
-                WorldCircle("Cut", t, new Vector2(1.12f, 0f), new Vector2(0.25f, 0.58f), new Color(0.68f, 0.45f, 0.2f), 10);
-                break;
-            case HazardKind.Whirlpool:
-                hazard.Radius = 1.15f;
-                for (var i = 0; i < 4; i++) WorldCircle("Whirl", t, new Vector2(i * 0.2f - 0.3f, 0f), Vector2.one * (2.5f - i * 0.5f), new Color(0.05f, 0.31f, 0.48f, 0.35f), 4 + i);
-                break;
-            case HazardKind.FishSchool:
-                hazard.Radius = 1.1f; hazard.Damage = 9f; // 속도는 스폰 시 랜덤
-                for (var i = 0; i < 5; i++) WorldCircle("Small Fish", t, new Vector2((i % 3) * 0.55f - 0.55f, (i / 3) * 0.48f - 0.25f), new Vector2(0.58f, 0.28f), new Color(0.85f, 0.82f, 0.38f), 8);
-                break;
-            case HazardKind.Stone:
-                hazard.Radius = 0.5f; hazard.Damage = 11f;
-                WorldCircle("Stone", t, Vector2.zero, new Vector2(0.82f, 0.75f), new Color(0.31f, 0.35f, 0.39f), 8);
-                break;
-            case HazardKind.Bird:
-                hazard.Radius = 0.75f; hazard.Damage = 18f; hazard.Velocity = Vector2.down * 3.4f;
-                WorldCircle("Bird", t, Vector2.zero, new Vector2(1.0f, 0.65f), new Color(0.08f, 0.09f, 0.13f), 18);
-                WorldRect("Left Wing", t, new Vector2(-0.55f, 0f), new Vector2(0.85f, 0.2f), new Color(0.12f, 0.13f, 0.18f), 17).transform.localRotation = Quaternion.Euler(0f, 0f, 22f);
-                WorldRect("Right Wing", t, new Vector2(0.55f, 0f), new Vector2(0.85f, 0.2f), new Color(0.12f, 0.13f, 0.18f), 17).transform.localRotation = Quaternion.Euler(0f, 0f, -22f);
-                break;
-            case HazardKind.Fog:
-                hazard.Radius = 0f; hazard.Life = 5.5f; // 속도·가로 크기는 스폰 시
-                var fogGo = new GameObject("Dense Natural Fog");
-                fogGo.transform.SetParent(t, false);
-                fogGo.transform.localScale = new Vector3(3f, 2.8f, 1f);
-                hazard.FogRenderer = fogGo.AddComponent<SpriteRenderer>();
-                hazard.FogRenderer.sprite = fog;
-                hazard.FogRenderer.color = new Color(0.84f, 0.89f, 0.92f, 0f);
-                hazard.FogRenderer.sortingOrder = 45;
-                break;
-            case HazardKind.Debris:
-                hazard.Radius = 0.75f; hazard.Damage = 14f; hazard.Velocity = Vector2.right * 7f; // 방향은 스폰 시
-                WorldRect("Debris", t, Vector2.zero, new Vector2(1.5f, 0.55f), new Color(0.39f, 0.25f, 0.16f), 9).transform.localRotation = Quaternion.Euler(0f, 0f, 25f);
-                break;
-            case HazardKind.DarkPool:
-                hazard.Radius = 1.3f;
-                WorldCircle("Dark Pool", t, Vector2.zero, new Vector2(2.5f, 1.8f), new Color(0.015f, 0.04f, 0.12f, 0.78f), 2);
-                break;
-            case HazardKind.Piranha:
-                hazard.Radius = 0.72f; hazard.Damage = 16f; hazard.Life = 12f;
-                WorldCircle("Piranha", t, Vector2.zero, new Vector2(1.25f, 0.75f), new Color(0.64f, 0.08f, 0.12f), 16);
-                WorldCircle("Eye", t, new Vector2(-0.25f, 0.12f), Vector2.one * 0.13f, Color.white, 17);
-                break;
-            case HazardKind.FallenTree:
-            {
-                var w = SalmonHazard.NominalFallenTreeWidth;
-                hazard.HalfExtents = new Vector2(w * 0.5f, 0.48f);
-                hazard.Damage = 20f;
-                WorldRect("Full Width Trunk", t, Vector2.zero, new Vector2(w, 0.88f), new Color(0.30f, 0.14f, 0.055f), 13);
-                WorldRect("Wet Bark", t, new Vector2(0f, 0.08f), new Vector2(w - 0.35f, 0.18f), new Color(0.48f, 0.27f, 0.10f), 14);
-                float[] knotY = { 0.1f, -0.14f, 0.05f, 0.16f, -0.08f };
-                float[] knotRot = { -18f, 12f, 22f, -8f, 15f };
-                for (var i = -2; i <= 2; i++)
-                {
-                    var knot = WorldCircle("Bark Knot", t, new Vector2(i * w / 5f, knotY[i + 2]), new Vector2(0.38f, 0.28f), new Color(0.18f, 0.08f, 0.035f), 15);
-                    knot.transform.localRotation = Quaternion.Euler(0f, 0f, knotRot[i + 2]);
-                }
-                break;
-            }
-            case HazardKind.HealingReward:
-                hazard.Radius = 0.62f; hazard.Life = 18f;
-                WorldCircle("Healing Glow", t, Vector2.zero, Vector2.one * 1.65f, new Color(0.25f, 1f, 0.58f, 0.28f), 23);
-                WorldCircle("Healing Pearl", t, Vector2.zero, Vector2.one * 0.92f, new Color(0.23f, 0.94f, 0.52f), 24);
-                WorldRect("Cross Vertical", t, Vector2.zero, new Vector2(0.18f, 0.58f), Color.white, 25);
-                WorldRect("Cross Horizontal", t, Vector2.zero, new Vector2(0.58f, 0.18f), Color.white, 25);
-                break;
-            case HazardKind.ElectricEel:
-                hazard.Radius = 1.15f; hazard.Damage = 22f; hazard.Velocity = Vector2.down * 1.1f;
-                for (var i = 0; i < 7; i++)
-                    WorldCircle("Eel Segment", t, new Vector2(Mathf.Sin(i * 1.15f) * 0.34f, i * -0.34f + 1f), new Vector2(0.62f, 0.48f),
-                        i % 2 == 0 ? new Color(0.92f, 0.93f, 0.16f) : new Color(0.16f, 0.74f, 0.82f), 18);
-                WorldCircle("Electric Aura", t, Vector2.zero, new Vector2(2.4f, 3.2f), new Color(0.45f, 0.95f, 1f, 0.16f), 16);
-                float[] boltY = { 0.4f, -0.5f, 0.15f, -0.25f };
-                for (var i = 0; i < 4; i++)
-                {
-                    var bolt = WorldRect("Lightning", t, new Vector2((i - 1.5f) * 0.45f, boltY[i]), new Vector2(0.07f, 0.75f), new Color(0.75f, 1f, 1f), 20);
-                    bolt.transform.localRotation = Quaternion.Euler(0f, 0f, (i % 2 == 0 ? 1f : -1f) * 28f);
-                }
-                break;
-            case HazardKind.BearSwipe:
-                hazard.HalfExtents = new Vector2(2.15f, 1.05f); hazard.Damage = 26f; hazard.Velocity = Vector2.right * 8.2f; // 방향은 스폰 시
-                WorldCircle("Bear Paw", t, Vector2.zero, new Vector2(2.8f, 2.2f), new Color(0.34f, 0.18f, 0.08f), 19);
-                for (var i = -1; i <= 1; i++)
-                {
-                    WorldCircle("Toe", t, new Vector2(i * 0.72f, 0.9f), new Vector2(0.72f, 0.82f), new Color(0.42f, 0.23f, 0.11f), 20);
-                    var claw = WorldRect("Claw", t, new Vector2(i * 0.72f, 1.38f), new Vector2(0.16f, 0.65f), new Color(0.94f, 0.88f, 0.68f), 21);
-                    claw.transform.localRotation = Quaternion.Euler(0f, 0f, i * -8f);
-                }
-                break;
-            case HazardKind.SpinningNet:
-                hazard.Radius = 1.35f; hazard.Damage = 19f; hazard.Velocity = Vector2.down * 0.65f;
-                WorldCircle("Net Ring", t, Vector2.zero, Vector2.one * 2.65f, new Color(0.74f, 0.69f, 0.52f, 0.32f), 17);
-                for (var i = 0; i < 4; i++)
-                    WorldRect("Spinning Rope", t, Vector2.zero, new Vector2(2.75f, 0.12f), new Color(0.92f, 0.84f, 0.61f), 19)
-                        .transform.localRotation = Quaternion.Euler(0f, 0f, i * 45f);
-                WorldCircle("Weighted Core", t, Vector2.zero, Vector2.one * 0.52f, new Color(0.72f, 0.12f, 0.09f), 21);
-                break;
-        }
-        hazard.InitialLife = hazard.Life;
-
-        SavePrefab(root, $"{HazardFolder}/{kind}.prefab");
     }
 
     // ================================================================ 캔버스 UI
@@ -719,141 +516,12 @@ public static class SalmonSceneBuilder
         return go;
     }
 
-    static GameObject WorldCircle(string name, Transform parent, Vector2 position, Vector2 size, Color color, int order)
-    {
-        var go = WorldRect(name, parent, position, size, color, order);
-        go.GetComponent<SpriteRenderer>().sprite = circle;
-        return go;
-    }
-
     // ================================================================ 스프라이트 에셋
 
-    static void LoadSprites(bool create)
+    static void LoadSprites()
     {
-        if (create)
-        {
-            EnsureFolder(SpriteFolder);
-            if (!File.Exists(WhitePath)) WritePng(WhitePath, MakeWhite());
-            if (!File.Exists(CirclePath)) WritePng(CirclePath, MakeCircle());
-            if (!File.Exists(FogPath)) WritePng(FogPath, MakeFog());
-            ConfigureSprite(WhitePath, 1f);      // 1×1 → 1 유닛
-            ConfigureSprite(CirclePath, 64f);    // 64px → 1 유닛
-            ConfigureSprite(FogPath, 16f);       // 192×128 → 12×8 유닛 (원본 코드와 동일)
-        }
         white = AssetDatabase.LoadAssetAtPath<Sprite>(WhitePath);
-        circle = AssetDatabase.LoadAssetAtPath<Sprite>(CirclePath);
         fog = AssetDatabase.LoadAssetAtPath<Sprite>(FogPath);
-    }
-
-    static Texture2D MakeWhite()
-    {
-        var tex = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-        tex.SetPixel(0, 0, Color.white);
-        tex.Apply();
-        return tex;
-    }
-
-    static Texture2D MakeCircle()
-    {
-        const int size = 64;
-        var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-        var px = new Color[size * size];
-        for (var y = 0; y < size; y++)
-        for (var x = 0; x < size; x++)
-        {
-            var dx = (x + 0.5f) / size * 2f - 1f;
-            var dy = (y + 0.5f) / size * 2f - 1f;
-            var d = Mathf.Sqrt(dx * dx + dy * dy);
-            px[y * size + x] = new Color(1f, 1f, 1f, Mathf.Clamp01((1f - d) * 8f));
-        }
-        tex.SetPixels(px);
-        tex.Apply();
-        return tex;
-    }
-
-    static Texture2D MakeFog()
-    {
-        const int width = 192, height = 128;
-        var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
-        var px = new Color[width * height];
-        for (var y = 0; y < height; y++)
-        for (var x = 0; x < width; x++)
-        {
-            var u = x / (float)width;
-            var v = y / (float)height;
-            var broad = Mathf.PerlinNoise(u * 3.2f + 4.1f, v * 3.2f + 7.6f);
-            var detail = Mathf.PerlinNoise(u * 8.5f + 12.7f, v * 8.5f + 2.3f);
-            var wisps = Mathf.SmoothStep(0.2f, 0.9f, broad * 0.72f + detail * 0.28f);
-            var edgeFade = Mathf.SmoothStep(0f, 0.18f, v) * Mathf.SmoothStep(0f, 0.18f, 1f - v);
-            var alpha = Mathf.Lerp(0.58f, 1f, wisps) * edgeFade;
-            px[y * width + x] = new Color(0.83f, 0.88f, 0.91f, alpha);
-        }
-        tex.SetPixels(px);
-        tex.Apply();
-        return tex;
-    }
-
-    static void WritePng(string path, Texture2D tex)
-    {
-        File.WriteAllBytes(path, tex.EncodeToPNG());
-        Object.DestroyImmediate(tex);
-        AssetDatabase.ImportAsset(path);
-    }
-
-    /// <summary>
-    /// 스프라이트 시트를 가로 방향 격자로 다시 슬라이스한다.
-    /// 자동 슬라이스(Automatic)는 프레임마다 rect 와 피벗이 달라져 재생할 때 그림이 덜컹거리고,
-    /// 여백의 점 하나까지 조각으로 잡아내므로 격자로 고정해야 한다.
-    /// </summary>
-    static Sprite[] LoadPlayerFrames()
-    {
-        var importer = AssetImporter.GetAtPath(PlayerSheetPath) as TextureImporter;
-        if (importer == null)
-        {
-            Debug.LogWarning("[SalmonSceneBuilder] 시트를 찾을 수 없습니다: " + PlayerSheetPath);
-            return new Sprite[0];
-        }
-
-        var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(PlayerSheetPath);
-        var count = texture != null ? texture.width / PlayerFrameSize : 0;
-        if (count < 1) return new Sprite[0];
-
-        var needsSlice = importer.spriteImportMode != SpriteImportMode.Multiple ||
-                         importer.spritesheet == null ||
-                         importer.spritesheet.Length != count ||
-                         !Mathf.Approximately(importer.spritePixelsPerUnit, PlayerPpu);
-        if (needsSlice)
-        {
-            var sheet = new SpriteMetaData[count];
-            for (var i = 0; i < count; i++)
-            {
-                sheet[i] = new SpriteMetaData
-                {
-                    name = "player_" + i,
-                    rect = new Rect(i * PlayerFrameSize, 0f, PlayerFrameSize, texture.height),
-                    alignment = (int)SpriteAlignment.Center,
-                    pivot = new Vector2(0.5f, 0.5f)
-                };
-            }
-            importer.textureType = TextureImporterType.Sprite;
-            importer.spriteImportMode = SpriteImportMode.Multiple;
-            importer.spritePixelsPerUnit = PlayerPpu;
-            importer.filterMode = FilterMode.Bilinear;
-            importer.mipmapEnabled = false;
-            importer.alphaIsTransparency = true;
-            importer.spritesheet = sheet;
-            importer.SaveAndReimport();
-        }
-
-        // Multiple 모드에서는 LoadAssetAtPath<Sprite> 가 null 을 준다 — 전부 읽어서 이름순으로 세운다
-        var loaded = new List<Sprite>();
-        foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(PlayerSheetPath))
-            if (asset is Sprite sprite) loaded.Add(sprite);
-        loaded.Sort(delegate(Sprite a, Sprite b)
-        {
-            return EditorUtility.NaturalCompare(a.name, b.name);
-        });
-        return loaded.ToArray();
     }
 
     static void ConfigureSprite(string path, float ppu)
@@ -875,20 +543,4 @@ public static class SalmonSceneBuilder
         importer.SaveAndReimport();
     }
 
-    // ================================================================ 공용
-
-    static void SavePrefab(GameObject go, string path)
-    {
-        EnsureFolder(Path.GetDirectoryName(path).Replace('\\', '/'));
-        PrefabUtility.SaveAsPrefabAsset(go, path);
-        Object.DestroyImmediate(go);
-    }
-
-    static void EnsureFolder(string folder)
-    {
-        if (AssetDatabase.IsValidFolder(folder)) return;
-        var parent = Path.GetDirectoryName(folder).Replace('\\', '/');
-        EnsureFolder(parent);
-        AssetDatabase.CreateFolder(parent, Path.GetFileName(folder));
-    }
 }

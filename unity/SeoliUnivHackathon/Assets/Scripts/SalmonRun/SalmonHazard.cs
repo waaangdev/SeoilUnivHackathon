@@ -29,6 +29,8 @@ namespace SalmonRun
         public bool Hit;
         public bool NearMissAwarded;
         public SpriteRenderer FogRenderer;
+        [Tooltip("그림이 한쪽을 보고 있어 진행 방향에 따라 좌우를 뒤집어야 하는 장애물용")]
+        public SpriteRenderer BodyRenderer;
 
         public void Tick(float deltaTime, float scrollSpeed, Vector2 playerPosition)
         {
@@ -50,10 +52,20 @@ namespace SalmonRun
             else if (Kind == HazardKind.FishSchool)
             {
                 movement.x += Mathf.Sin(Time.time * 3f + Phase) * 0.8f;
+                // 그림 속 물고기는 왼쪽을 보고 있다 — 오른쪽으로 갈 때만 뒤집는다
+                if (BodyRenderer != null) BodyRenderer.flipX = movement.x > 0f;
             }
             else if (Kind == HazardKind.Whirlpool)
             {
-                transform.Rotate(0f, 0f, -120f * deltaTime);
+                // 그림은 똑바로 세워 둔 채, 위치만 작은 원을 그리게 한다.
+                // 원 궤적을 속도로 더하면(원 위치의 미분) 스크롤 이동과 자연스럽게 합쳐지고
+                // 프레임마다 오차가 쌓이지 않는다.
+                const float orbitRadius = 0.26f;
+                const float orbitSpeed = 2.3f;      // rad/s
+                var angle = Time.time * orbitSpeed + Phase;
+                movement.x += -orbitRadius * orbitSpeed * Mathf.Sin(angle);
+                movement.y += orbitRadius * orbitSpeed * Mathf.Cos(angle);
+                transform.localRotation = Quaternion.identity;
                 transform.localScale = Vector3.one * (1f + Mathf.Sin(Time.time * 4.5f + Phase) * 0.12f);
             }
             else if (Kind == HazardKind.Seaweed)

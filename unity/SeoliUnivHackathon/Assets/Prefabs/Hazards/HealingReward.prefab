@@ -59,6 +59,7 @@ MonoBehaviour:
   Hit: 0
   NearMissAwarded: 0
   FogRenderer: {fileID: 0}
+  BodyRenderer: {fileID: 0}
 --- !u!1 &4074200974489102466
 GameObject:
   m_ObjectHideFlags: 0

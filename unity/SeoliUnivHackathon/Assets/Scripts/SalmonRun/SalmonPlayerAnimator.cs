@@ -3,9 +3,10 @@ using UnityEngine;
 namespace SalmonRun
 {
     /// <summary>
-    /// 플레이어 연어의 유영 애니메이션. 스프라이트 시트 프레임을 순서대로 갈아 끼운다.
+    /// 스프라이트 시트 프레임을 순서대로 갈아 끼우는 루프 애니메이션.
     /// 이 프로젝트에는 Animator를 쓰는 곳이 없어서 .anim/.controller 대신 스프라이트 교체로 처리한다.
-    /// 재생 속도는 SalmonGame이 SpeedScale로 넣어 준다 — 빨리 헤엄칠수록 꼬리도 빨라진다.
+    /// 플레이어 연어와 물고기 떼 장애물이 함께 쓴다 — 플레이어는 SalmonGame이 SpeedScale을 넣어
+    /// 빨리 헤엄칠수록 꼬리가 빨라지고, 장애물은 기본 배율 1로 그냥 돈다.
     /// </summary>
     public sealed class SalmonPlayerAnimator : MonoBehaviour
     {

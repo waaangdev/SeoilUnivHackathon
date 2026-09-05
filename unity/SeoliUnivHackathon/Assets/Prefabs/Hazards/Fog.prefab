@@ -148,3 +148,4 @@ MonoBehaviour:
   Hit: 0
   NearMissAwarded: 0
   FogRenderer: {fileID: 9047309449322110785}
+  BodyRenderer: {fileID: 0}

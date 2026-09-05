@@ -338,6 +338,21 @@ TextureImporter:
   - first:
       213: 3429295558034090159
     second: fish-Sheet_111
+  - first:
+      213: 8966945178157639174
+    second: fish_0
+  - first:
+      213: 7910131988914132003
+    second: fish_1
+  - first:
+      213: 4694313144681828600
+    second: fish_2
+  - first:
+      213: -5337588824987023507
+    second: fish_3
+  - first:
+      213: -3968430113050936271
+    second: fish_4
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -384,7 +399,7 @@ TextureImporter:
   spriteMeshType: 1
   alignment: 0
   spritePivot: {x: 0.5, y: 0.5}
-  spritePixelsToUnits: 100
+  spritePixelsToUnits: 80
   spriteBorder: {x: 0, y: 0, z: 0, w: 0}
   spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
@@ -433,7 +448,7 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: fish-Sheet_0
+      name: fish_0
       rect:
         serializedVersion: 2
         x: 0
@@ -448,14 +463,14 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 43fb71891e0edd340800000000000000
-      internalID: 4890312029918183220
+      spriteID: 606ec70712df07c70800000000000000
+      internalID: 8966945178157639174
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: fish-Sheet_1
+      name: fish_1
       rect:
         serializedVersion: 2
         x: 195
@@ -470,14 +485,14 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 94634b1ab63096740800000000000000
-      internalID: 5145647810056828489
+      spriteID: 3245ead522f66cd60800000000000000
+      internalID: 7910131988914132003
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: fish-Sheet_2
+      name: fish_2
       rect:
         serializedVersion: 2
         x: 390
@@ -492,14 +507,14 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: bd77608c8d2a0a720800000000000000
-      internalID: 2855461215705397211
+      spriteID: 8f0153dfeec852140800000000000000
+      internalID: 4694313144681828600
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: fish-Sheet_3
+      name: fish_3
       rect:
         serializedVersion: 2
         x: 585
@@ -514,14 +529,14 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: c8f3d6041ede427d0800000000000000
-      internalID: -2943966704689135732
+      spriteID: d67cd815e331de5b0800000000000000
+      internalID: -5337588824987023507
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: fish-Sheet_4
+      name: fish_4
       rect:
         serializedVersion: 2
         x: 780
@@ -536,8 +551,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 61121e3e8848a12c0800000000000000
-      internalID: -4460106757483454186
+      spriteID: 13cb2ab76dd4de8c0800000000000000
+      internalID: -3968430113050936271
       vertices: []
       indices: 
       edges: []
@@ -563,6 +578,11 @@ TextureImporter:
       fish-Sheet_2: 2855461215705397211
       fish-Sheet_3: -2943966704689135732
       fish-Sheet_4: -4460106757483454186
+      fish_0: 8966945178157639174
+      fish_1: 7910131988914132003
+      fish_2: 4694313144681828600
+      fish_3: -5337588824987023507
+      fish_4: -3968430113050936271
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
