@@ -45,6 +45,8 @@ namespace SalmonRun
         [SerializeField] private Sprite coastBackground;
         [Tooltip("스테이지 2·3 · 강")]
         [SerializeField] private Sprite riverBackground;
+        [Tooltip("3스테이지에서 배경 위로 페이드인되는 나무 캐노피")]
+        [SerializeField] private SalmonTreeLayer treeLayer;
 
         [Header("테스트 — 플레이 중에도 인스펙터에서 바로 조절된다")]
         [Tooltip("한 스테이지가 끝나기까지의 시간(초). 기본 34")]
@@ -109,6 +111,7 @@ namespace SalmonRun
         private Color targetCameraColor;
         private float currentTintAlpha = 0.14f;
         private float targetTintAlpha = 0.14f;
+        private float currentTreeAlpha;
         private bool coastTileSpawned;
         private bool coastPending;
         private string transitionText = "";
@@ -699,6 +702,7 @@ namespace SalmonRun
             targetRiverHalfWidth = currentRiverHalfWidth;
             targetTintAlpha = currentTintAlpha;
             terrainTransitionTimer = 0f;
+            currentTreeAlpha = targetStage >= 3 ? 1f : 0f;   // 되감을 때는 즉시 맞춘다
             ApplyEnvironment();
         }
 
@@ -708,6 +712,7 @@ namespace SalmonRun
             coastTileSpawned = false;
             coastPending = false;
             if (background != null) background.ResetTiles();
+            if (treeLayer != null) treeLayer.ResetTiles();
         }
 
         private void BeginEnvironmentTransition(int targetStage)
@@ -769,6 +774,8 @@ namespace SalmonRun
                     currentTintAlpha = targetTintAlpha;
                 }
             }
+            // 나무 캐노피는 3스테이지에 들어서면 4초에 걸쳐 서서히 나타난다
+            currentTreeAlpha = Mathf.MoveTowards(currentTreeAlpha, stage >= 3 ? 1f : 0f, dt / 4f);
             ApplyEnvironment();
         }
 
@@ -783,6 +790,7 @@ namespace SalmonRun
             tint.a = usingArt ? currentTintAlpha : 1f;
             waterRenderer.color = tint;
             gameCamera.backgroundColor = currentCameraColor;
+            if (treeLayer != null) treeLayer.SetAlpha(currentTreeAlpha);
             for (var i = 0; i < bankRenderers.Length; i++)
             {
                 var renderer = bankRenderers[i];

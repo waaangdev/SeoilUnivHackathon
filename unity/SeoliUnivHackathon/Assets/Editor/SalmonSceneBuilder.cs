@@ -35,6 +35,14 @@ public static class SalmonSceneBuilder
     const float BackgroundOffsetX = -0.76f;
     const int BackgroundTileCount = 3;
 
+    // 3스테이지 나무 캐노피 — 512×1751, 위아래 끝 줄이 같아 원본 방향 그대로 세로로 이어진다.
+    // 가운데 투명 통로가 폭의 42% 로 강 그림의 물길과 같아서, 배경 타일과 같은 34유닛 폭으로 맞춘다.
+    const string TreePath = "Assets/Art/Sprites/tree.png";
+    const float TreeWidth = 34f;
+    const int TreeTileCount = 2;
+    // 통로 중심(258.5px)이 이미지 중심(256px)에서 살짝 오른쪽이라 그만큼 왼쪽으로 민다
+    const float TreeOffsetX = -0.17f;
+
     static Sprite white, fog;
     static TMP_FontAsset font;
 
@@ -68,6 +76,8 @@ public static class SalmonSceneBuilder
 
         var background = BuildBackground(world, out var backgroundTiles, out var seaSprite, out var coastSprite,
             out var riverSprite);
+
+        var treeLayer = BuildTreeLayer(world, out var treeTiles);
 
         var water = WorldRect("Water", world, Vector2.zero, new Vector2(36f, 22f), new Color(0.08f, 0.56f, 0.75f), -20);
         var leftBank = WorldRect("Left Bank", world, new Vector2(-13.1f, 0f), new Vector2(12f, 22f), new Color(0.25f, 0.57f, 0.35f), -10);
@@ -122,6 +132,16 @@ public static class SalmonSceneBuilder
         so.FindProperty("seaBackground").objectReferenceValue = seaSprite;
         so.FindProperty("coastBackground").objectReferenceValue = coastSprite;
         so.FindProperty("riverBackground").objectReferenceValue = riverSprite;
+        so.FindProperty("treeLayer").objectReferenceValue = treeLayer;
+
+        if (treeLayer != null)
+        {
+            var tso = new SerializedObject(treeLayer);
+            tso.FindProperty("game").objectReferenceValue = game;
+            SetArray(tso.FindProperty("tiles"), treeTiles);
+            tso.FindProperty("viewHalfHeight").floatValue = camera.orthographicSize;
+            tso.ApplyModifiedPropertiesWithoutUndo();
+        }
 
         var bso = new SerializedObject(background);
         bso.FindProperty("game").objectReferenceValue = game;
@@ -185,6 +205,45 @@ public static class SalmonSceneBuilder
         }
         tiles = renderers.ToArray();
         return scroller;
+    }
+
+    /// <summary>
+    /// 3스테이지 나무 캐노피 레이어. 배경 타일(-40)과 물 보정(-20) 사이에 깔아 배경 위로 얹는다.
+    /// 상하 반전 없이 원본 방향으로만 이어붙인다.
+    /// </summary>
+    static SalmonTreeLayer BuildTreeLayer(Transform world, out Object[] tiles)
+    {
+        tiles = new Object[0];
+        // 512px 이 34유닛이 되도록 PPU 를 맞춰 두면 타일 스케일이 1로 떨어진다
+        ConfigureSprite(TreePath, 512f / TreeWidth);
+        var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(TreePath);
+        if (sprite == null)
+        {
+            Debug.LogWarning("[SalmonSceneBuilder] 나무 그림을 못 읽었습니다: " + TreePath);
+            return null;
+        }
+
+        var root = new GameObject("Tree Overlay");
+        root.transform.SetParent(world, false);
+        root.transform.localPosition = new Vector3(TreeOffsetX, 0f, 0f);
+        var layer = root.AddComponent<SalmonTreeLayer>();
+
+        var height = sprite.bounds.size.y;
+        var renderers = new List<Object>();
+        for (var i = 0; i < TreeTileCount; i++)
+        {
+            var go = new GameObject("Tree Tile " + (i + 1));
+            go.transform.SetParent(root.transform, false);
+            go.transform.localPosition = new Vector3(0f, (i - (TreeTileCount - 1) * 0.5f) * height, 0f);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = sprite;
+            sr.sortingOrder = -30;
+            sr.color = new Color(1f, 1f, 1f, 0f);   // 3스테이지에 들어설 때까지 숨어 있는다
+            sr.enabled = false;
+            renderers.Add(sr);
+        }
+        tiles = renderers.ToArray();
+        return layer;
     }
 
     // ================================================================ 카메라 / EventSystem

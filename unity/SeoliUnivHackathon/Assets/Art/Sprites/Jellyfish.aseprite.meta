@@ -127,7 +127,7 @@ ScriptedImporter:
   animatedSpriteImportData:
   - name: Jellyfish
     originalName: 
-    pivot: {x: 0.5176767, y: -0.29831934}
+    pivot: {x: 0.540404, y: -0.037815124}
     alignment: 9
     border: {x: 0, y: 0, z: 0, w: 0}
     customData: 
@@ -165,8 +165,8 @@ ScriptedImporter:
       frameIndex: 0
       additiveSortOrder: 0
       cellRect:
-        x: 181
-        y: 71
+        x: 41
+        y: 9
         width: 198
         height: 238
       spriteId: e10d69ff4b395314baba60a4976b9c55
@@ -179,4 +179,4 @@ ScriptedImporter:
   generatePhysicsShape: 0
   secondarySpriteTextures: []
   previousTextureSize: {x: 256, y: 256}
-  canvasSize: {x: 567, y: 432}
+  canvasSize: {x: 296, y: 278}

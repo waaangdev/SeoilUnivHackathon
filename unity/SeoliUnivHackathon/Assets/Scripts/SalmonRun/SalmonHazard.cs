@@ -89,10 +89,7 @@ namespace SalmonRun
                 transform.localScale = new Vector3(1f + pulse * 0.15f, 1f - pulse * 0.1f, 1f);
                 movement.x += Mathf.Sin(Time.time * 2.7f + Phase) * 0.48f;
             }
-            else if (Kind == HazardKind.Boulder)
-            {
-                transform.Rotate(0f, 0f, 22f * deltaTime);
-            }
+            // 바위는 회전시키지 않는다 — 그림이 얹혀 있어 돌아가면 어색하다
             else if (Kind == HazardKind.Rapid)
             {
                 transform.localScale = new Vector3(1f + Mathf.Sin(Time.time * 7f + Phase) * 0.18f, 1f, 1f);
