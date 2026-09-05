@@ -3275,6 +3275,12 @@ MonoBehaviour:
   seaBackground: {fileID: 21300000, guid: eb0b71c9dde12a345a9e4a51f19ba997, type: 3}
   coastBackground: {fileID: 21300000, guid: b446c9c86c67c4041abc5fd583f46619, type: 3}
   riverBackground: {fileID: 21300000, guid: 9b681b9d7f049554ebe6aa6e88c5144b, type: 3}
+  lobbyMusic: {fileID: 8300000, guid: c58e98988c3c468f88d23b4a6f1aaad9, type: 3}
+  lobbyMusicVolume: 0.65
+  gameplayMusic: {fileID: 8300000, guid: 8978f138374b46998d9896a11612d5c3, type: 3}
+  gameplayMusicVolume: 0.65
+  gameOverMusic: {fileID: 8300000, guid: 8118ee9d6eae4b37b52b5d121ee4e278, type: 3}
+  gameOverMusicVolume: 0.65
   stageDuration: 34
   speedMultiplier: 1
   spawnIntervalMultiplier: 1

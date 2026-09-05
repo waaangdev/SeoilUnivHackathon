@@ -30,6 +30,9 @@ public static class SalmonSceneBuilder
     const string RiverBgPath = "Assets/Art/Sprites/background1.png";
     const string CoastBgPath = "Assets/Art/Sprites/background2.png";
     const string SeaBgPath = "Assets/Art/Sprites/background3.png";
+    const string LobbyMusicPath = "Assets/Resources/Audio/Morning_s_First_Leap.mp3";
+    const string GameplayMusicPath = "Assets/Resources/Audio/Morning_at_the_Riverbend.mp3";
+    const string GameOverMusicPath = "Assets/Resources/Audio/Light_on_the_Riverbed.mp3";
     const float BackgroundPpu = 27.7f;
     // 강 그림의 물길(293~690px)이 화면 중앙에 오도록 타일 전체를 살짝 왼쪽으로
     const float BackgroundOffsetX = -0.76f;
@@ -133,6 +136,9 @@ public static class SalmonSceneBuilder
         so.FindProperty("seaBackground").objectReferenceValue = seaSprite;
         so.FindProperty("coastBackground").objectReferenceValue = coastSprite;
         so.FindProperty("riverBackground").objectReferenceValue = riverSprite;
+        so.FindProperty("lobbyMusic").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(LobbyMusicPath);
+        so.FindProperty("gameplayMusic").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(GameplayMusicPath);
+        so.FindProperty("gameOverMusic").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(GameOverMusicPath);
 
         var bso = new SerializedObject(background);
         bso.FindProperty("game").objectReferenceValue = game;

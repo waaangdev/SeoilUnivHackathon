@@ -45,6 +45,20 @@ namespace SalmonRun
         [Tooltip("스테이지 2·3 · 강")]
         [SerializeField] private Sprite riverBackground;
 
+        [Header("로비 배경음악")]
+        [Tooltip("비어 있으면 Resources/Audio/Morning_s_First_Leap 을 자동으로 불러온다")]
+        [SerializeField] private AudioClip lobbyMusic;
+        [Range(0f, 1f)]
+        [SerializeField] private float lobbyMusicVolume = 0.65f;
+        [Tooltip("비어 있으면 Resources/Audio/Morning_at_the_Riverbend 를 자동으로 불러온다")]
+        [SerializeField] private AudioClip gameplayMusic;
+        [Range(0f, 1f)]
+        [SerializeField] private float gameplayMusicVolume = 0.65f;
+        [Tooltip("비어 있으면 Resources/Audio/Light_on_the_Riverbed 를 자동으로 불러온다")]
+        [SerializeField] private AudioClip gameOverMusic;
+        [Range(0f, 1f)]
+        [SerializeField] private float gameOverMusicVolume = 0.65f;
+
         [Header("테스트 — 플레이 중에도 인스펙터에서 바로 조절된다")]
         [Tooltip("한 스테이지가 끝나기까지의 시간(초). 기본 34")]
         [SerializeField] private float stageDuration = 34f;
@@ -95,6 +109,9 @@ namespace SalmonRun
         private float fogIntensity;
         private float fogWarningTimer;
         private float fogTimer;
+        private AudioSource lobbyMusicSource;
+        private AudioSource gameplayMusicSource;
+        private AudioSource gameOverMusicSource;
         private Vector2 playerVelocity;
         private Vector3 cameraBasePosition;
         private float currentRiverHalfWidth = 7.1f;
@@ -188,13 +205,113 @@ namespace SalmonRun
             }
             AudioListener.volume = masterVolume;
 
+            SetupLobbyMusic();
+
             SetTheme(1);
             ResetBackground();
+        }
+
+        private void SetupLobbyMusic()
+        {
+            if (lobbyMusic == null)
+                lobbyMusic = Resources.Load<AudioClip>("Audio/Morning_s_First_Leap");
+            if (gameplayMusic == null)
+                gameplayMusic = Resources.Load<AudioClip>("Audio/Morning_at_the_Riverbend");
+            if (gameOverMusic == null)
+                gameOverMusic = Resources.Load<AudioClip>("Audio/Light_on_the_Riverbed");
+
+            if (lobbyMusic == null)
+            {
+                Debug.LogWarning("[SalmonGame] 로비 음악을 찾을 수 없습니다: Resources/Audio/Morning_s_First_Leap.mp3", this);
+            }
+            else
+            {
+                lobbyMusicSource = gameObject.AddComponent<AudioSource>();
+                ConfigureMusicSource(lobbyMusicSource, lobbyMusic, lobbyMusicVolume);
+                lobbyMusicSource.Play();
+            }
+
+            if (gameplayMusic == null)
+            {
+                Debug.LogWarning("[SalmonGame] 인게임 음악을 찾을 수 없습니다: Resources/Audio/Morning_at_the_Riverbend.mp3", this);
+            }
+            else
+            {
+                gameplayMusicSource = gameObject.AddComponent<AudioSource>();
+                ConfigureMusicSource(gameplayMusicSource, gameplayMusic, 0f);
+            }
+
+            if (gameOverMusic == null)
+            {
+                Debug.LogWarning("[SalmonGame] 게임오버 음악을 찾을 수 없습니다: Resources/Audio/Light_on_the_Riverbed.mp3", this);
+            }
+            else
+            {
+                gameOverMusicSource = gameObject.AddComponent<AudioSource>();
+                ConfigureMusicSource(gameOverMusicSource, gameOverMusic, 0f);
+            }
+        }
+
+        private static void ConfigureMusicSource(AudioSource source, AudioClip clip, float volume)
+        {
+            source.clip = clip;
+            source.loop = true;
+            source.playOnAwake = false;
+            source.spatialBlend = 0f;
+            source.volume = volume;
+        }
+
+        private void UpdateLobbyMusic(float dt)
+        {
+            var inLobby = state == GameState.Lobby;
+            var inGameplay = state == GameState.Playing;
+            var gameIsOver = state == GameState.GameOver;
+            var fadeStep = dt * 0.55f;
+
+            if (lobbyMusicSource != null)
+            {
+                if (inLobby && !lobbyMusicSource.isPlaying)
+                {
+                    lobbyMusicSource.volume = 0f;
+                    lobbyMusicSource.Play();
+                }
+                lobbyMusicSource.volume = Mathf.MoveTowards(lobbyMusicSource.volume,
+                    inLobby ? lobbyMusicVolume : 0f, fadeStep);
+                if (!inLobby && lobbyMusicSource.isPlaying && lobbyMusicSource.volume <= 0.001f)
+                    lobbyMusicSource.Stop();
+            }
+
+            if (gameplayMusicSource != null)
+            {
+                if (inGameplay && !gameplayMusicSource.isPlaying)
+                {
+                    gameplayMusicSource.volume = 0f;
+                    gameplayMusicSource.Play();
+                }
+                gameplayMusicSource.volume = Mathf.MoveTowards(gameplayMusicSource.volume,
+                    inGameplay ? gameplayMusicVolume : 0f, fadeStep);
+                if (!inGameplay && gameplayMusicSource.isPlaying && gameplayMusicSource.volume <= 0.001f)
+                    gameplayMusicSource.Stop();
+            }
+
+            if (gameOverMusicSource != null)
+            {
+                if (gameIsOver && !gameOverMusicSource.isPlaying)
+                {
+                    gameOverMusicSource.volume = 0f;
+                    gameOverMusicSource.Play();
+                }
+                gameOverMusicSource.volume = Mathf.MoveTowards(gameOverMusicSource.volume,
+                    gameIsOver ? gameOverMusicVolume : 0f, fadeStep);
+                if (!gameIsOver && gameOverMusicSource.isPlaying && gameOverMusicSource.volume <= 0.001f)
+                    gameOverMusicSource.Stop();
+            }
         }
 
         private void Update()
         {
             var dt = Mathf.Min(Time.deltaTime, 0.05f);
+            UpdateLobbyMusic(dt);
             AnimateWater(dt);
             UpdateEnvironmentTransition(dt);
             UpdateJuice(dt);
