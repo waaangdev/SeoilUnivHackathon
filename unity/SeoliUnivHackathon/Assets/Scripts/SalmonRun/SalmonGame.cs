@@ -72,6 +72,20 @@ namespace SalmonRun
         [Range(0f, 1f)]
         [SerializeField] private float jumpSoundVolume = 0.85f;
 
+        [Header("인게임 이벤트 효과음")]
+        [Tooltip("비어 있으면 Resources/Audio/WhirlpoolLoop 을 자동으로 불러온다")]
+        [SerializeField] private AudioClip whirlpoolSound;
+        [Range(0f, 1f)] [SerializeField] private float whirlpoolSoundVolume = 0.65f;
+        [Tooltip("비어 있으면 Resources/Audio/DamageHit 을 자동으로 불러온다")]
+        [SerializeField] private AudioClip damageSound;
+        [Range(0f, 1f)] [SerializeField] private float damageSoundVolume = 0.9f;
+        [Tooltip("비어 있으면 Resources/Audio/UpgradeReward 를 자동으로 불러온다")]
+        [SerializeField] private AudioClip upgradeSound;
+        [Range(0f, 1f)] [SerializeField] private float upgradeSoundVolume = 0.85f;
+        [Tooltip("비어 있으면 Resources/Audio/RapidPush 를 자동으로 불러온다")]
+        [SerializeField] private AudioClip rapidPushSound;
+        [Range(0f, 1f)] [SerializeField] private float rapidPushSoundVolume = 0.8f;
+
         [Header("테스트 — 플레이 중에도 인스펙터에서 바로 조절된다")]
         [Tooltip("한 스테이지가 끝나기까지의 시간(초). 기본 34")]
         [SerializeField] private float stageDuration = 34f;
@@ -131,6 +145,8 @@ namespace SalmonRun
         private AudioSource gameOverMusicSource;
         private AudioSource movementSoundSource;
         private AudioSource jumpSoundSource;
+        private AudioSource eventSoundSource;
+        private AudioSource whirlpoolSoundSource;
         private float jumpSoundTimer;
         private Vector2 playerVelocity;
         private Vector3 cameraBasePosition;
@@ -232,6 +248,7 @@ namespace SalmonRun
             SetupLobbyMusic();
             SetupMovementSound();
             SetupJumpSound();
+            SetupEventSounds();
 
             SetTheme(1);
             ResetBackground();
@@ -323,6 +340,34 @@ namespace SalmonRun
             jumpSoundSource.volume = jumpSoundVolume * effectsVolume;
         }
 
+        private void SetupEventSounds()
+        {
+            if (whirlpoolSound == null) whirlpoolSound = Resources.Load<AudioClip>("Audio/WhirlpoolLoop");
+            if (damageSound == null) damageSound = Resources.Load<AudioClip>("Audio/DamageHit");
+            if (upgradeSound == null) upgradeSound = Resources.Load<AudioClip>("Audio/UpgradeReward");
+            if (rapidPushSound == null) rapidPushSound = Resources.Load<AudioClip>("Audio/RapidPush");
+
+            eventSoundSource = gameObject.AddComponent<AudioSource>();
+            eventSoundSource.playOnAwake = false;
+            eventSoundSource.loop = false;
+            eventSoundSource.spatialBlend = 0f;
+            eventSoundSource.volume = effectsVolume;
+
+            if (whirlpoolSound != null)
+            {
+                whirlpoolSoundSource = gameObject.AddComponent<AudioSource>();
+                whirlpoolSoundSource.clip = whirlpoolSound;
+                whirlpoolSoundSource.playOnAwake = false;
+                whirlpoolSoundSource.loop = true;
+                whirlpoolSoundSource.spatialBlend = 0f;
+                whirlpoolSoundSource.volume = whirlpoolSoundVolume * effectsVolume;
+            }
+            else
+            {
+                Debug.LogWarning("[SalmonGame] 소용돌이 효과음을 찾을 수 없습니다: Resources/Audio/WhirlpoolLoop.mp3", this);
+            }
+        }
+
         private void SetEffectsVolume(float value)
         {
             effectsVolume = Mathf.Clamp01(value);
@@ -330,6 +375,43 @@ namespace SalmonRun
                 movementSoundSource.volume = movementSoundVolume * effectsVolume;
             if (jumpSoundSource != null)
                 jumpSoundSource.volume = jumpSoundVolume * effectsVolume;
+            if (eventSoundSource != null)
+                eventSoundSource.volume = effectsVolume;
+            if (whirlpoolSoundSource != null)
+                whirlpoolSoundSource.volume = whirlpoolSoundVolume * effectsVolume;
+        }
+
+        private void PlayEventSound(AudioClip clip, float volumeScale)
+        {
+            if (eventSoundSource == null || clip == null) return;
+            eventSoundSource.PlayOneShot(clip, Mathf.Clamp01(volumeScale));
+        }
+
+        private void UpdateWhirlpoolSound()
+        {
+            if (whirlpoolSoundSource == null) return;
+
+            var whirlpoolVisible = false;
+            foreach (var hazard in hazards)
+            {
+                if (hazard == null || hazard.Kind != HazardKind.Whirlpool || hazard.Life <= 0f) continue;
+                var viewport = gameCamera.WorldToViewportPoint(hazard.transform.position);
+                if (viewport.z >= 0f && viewport.x >= -0.08f && viewport.x <= 1.08f &&
+                    viewport.y >= -0.08f && viewport.y <= 1.08f)
+                {
+                    whirlpoolVisible = true;
+                    break;
+                }
+            }
+
+            if (whirlpoolVisible)
+            {
+                if (!whirlpoolSoundSource.isPlaying) whirlpoolSoundSource.Play();
+            }
+            else if (whirlpoolSoundSource.isPlaying)
+            {
+                whirlpoolSoundSource.Stop();
+            }
         }
 
         private void UpdateMovementSound(bool moving)
@@ -366,6 +448,7 @@ namespace SalmonRun
             UpdateMovementSound(false);
             jumpSoundTimer = 0f;
             if (jumpSoundSource != null) jumpSoundSource.Stop();
+            if (whirlpoolSoundSource != null) whirlpoolSoundSource.Stop();
         }
 
         private void UpdateLobbyMusic(float dt)
@@ -434,6 +517,7 @@ namespace SalmonRun
                     ReadMovement(dt);
                     UpdateRun(dt);
                     UpdateHazards(dt);
+                    UpdateWhirlpoolSound();
                     CheckHazards(dt);
                     UpdateStage(dt);
                 }
@@ -625,6 +709,7 @@ namespace SalmonRun
                     score += nearMissScore;
                     Burst(player.position, new Color(1f, 0.83f, 0.25f), 6, 1.8f);
                     ShowEvent("아슬아슬!  +" + nearMissScore, 0.75f);
+                    PlayEventSound(upgradeSound, upgradeSoundVolume);
                 }
                 if (hazard.Life <= 0f || hazard.transform.position.y < WorldBottom - 2f ||
                     Mathf.Abs(hazard.transform.position.x) > HalfWidth + 4f)
@@ -645,8 +730,17 @@ namespace SalmonRun
 
                 if (hazard.Kind == HazardKind.Whirlpool && distance < 3.2f)
                     player.position -= (Vector3)(offset.normalized * (3.2f - distance) * 1.15f * dt);
-                if (hazard.Kind == HazardKind.Rapid && distance < hazard.Radius)
-                    player.position += (Vector3)(hazard.Velocity.normalized * 3.7f * dt);
+                if (hazard.Kind == HazardKind.Rapid)
+                {
+                    var isBeingPushed = distance < hazard.Radius;
+                    if (isBeingPushed)
+                    {
+                        player.position += (Vector3)(hazard.Velocity.normalized * 3.7f * dt);
+                        if (!hazard.PlayerWasAffected)
+                            PlayEventSound(rapidPushSound, rapidPushSoundVolume);
+                    }
+                    hazard.PlayerWasAffected = isBeingPushed;
+                }
 
                 var touching = hazard.HalfExtents.sqrMagnitude > 0f
                     ? Mathf.Abs(offset.x) < hazard.HalfExtents.x + 0.48f &&
@@ -667,6 +761,7 @@ namespace SalmonRun
                         hazard.Life = 0f;
                         Burst(hazard.transform.position, new Color(0.3f, 1f, 0.58f), 18, 3.5f);
                         ShowEvent(recovered > 0f ? "체력 회복!  +" + Mathf.RoundToInt(recovered) : "완벽한 체력!  +100", 1.25f);
+                        PlayEventSound(upgradeSound, upgradeSoundVolume);
                         break;
                     case HazardKind.Seaweed:
                     case HazardKind.DarkPool:
@@ -722,6 +817,7 @@ namespace SalmonRun
             playerVelocity += Vector2.down * 2.2f;
             Burst(player.position, new Color(1f, 0.22f, 0.16f), 14, 3.8f);
             ShowEvent(message + "  -" + Mathf.RoundToInt(amount), 1f);
+            PlayEventSound(damageSound, damageSoundVolume);
             if (health <= 0f) EndGame();
         }
 

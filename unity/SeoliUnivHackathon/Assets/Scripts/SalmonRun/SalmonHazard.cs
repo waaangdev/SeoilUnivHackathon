@@ -39,6 +39,7 @@ namespace SalmonRun
         public float Phase;
         public bool Hit;
         public bool NearMissAwarded;
+        [System.NonSerialized] public bool PlayerWasAffected;
         public SpriteRenderer FogRenderer;
         [Tooltip("그림이 한쪽을 보고 있어 진행 방향에 따라 좌우를 뒤집어야 하는 장애물용")]
         public SpriteRenderer BodyRenderer;
