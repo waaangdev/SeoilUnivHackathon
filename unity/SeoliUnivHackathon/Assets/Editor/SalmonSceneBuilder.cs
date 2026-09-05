@@ -629,7 +629,7 @@ public static class SalmonSceneBuilder
 
     static GameObject WorldCircle(string name, Transform parent, Vector2 position, Vector2 size, Color color, int order)
     {
-        var go = Rect(name, parent, position, size, color, order);
+        var go = WorldRect(name, parent, position, size, color, order);
         go.GetComponent<SpriteRenderer>().sprite = circle;
         return go;
     }
