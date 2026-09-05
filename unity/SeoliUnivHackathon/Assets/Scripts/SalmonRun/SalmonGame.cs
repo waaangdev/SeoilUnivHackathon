@@ -60,6 +60,16 @@ namespace SalmonRun
         [Range(0f, 1f)]
         [SerializeField] private float gameOverMusicVolume = 0.65f;
 
+        [Header("조작 효과음")]
+        [Tooltip("비어 있으면 Resources/Audio/MovementSwim 을 자동으로 불러온다")]
+        [SerializeField] private AudioClip movementSound;
+        [Range(0f, 1f)]
+        [SerializeField] private float movementSoundVolume = 0.7f;
+        [Tooltip("비어 있으면 Resources/Audio/JumpSplash 를 자동으로 불러온다")]
+        [SerializeField] private AudioClip jumpSound;
+        [Range(0f, 1f)]
+        [SerializeField] private float jumpSoundVolume = 0.85f;
+
         [Header("테스트 — 플레이 중에도 인스펙터에서 바로 조절된다")]
         [Tooltip("한 스테이지가 끝나기까지의 시간(초). 기본 34")]
         [SerializeField] private float stageDuration = 34f;
@@ -93,13 +103,13 @@ namespace SalmonRun
         private float spawnTimer;
         private float damageCooldown;
         private float jumpTimer;
-        private float waveTimer;
         private float stageBannerTimer;
         private float hurtFlash;
         private float forwardPulse;
         private bool settingsOpen;
-        private bool waveWarningShown;
-        private float masterVolume = 0.75f;
+        private bool paused;
+        private float bgmVolume = 0.75f;
+        private float effectsVolume = 0.85f;
         private string eventText = "";
         private float eventTimer;
         private float rewardTimer;
@@ -113,6 +123,9 @@ namespace SalmonRun
         private AudioSource lobbyMusicSource;
         private AudioSource gameplayMusicSource;
         private AudioSource gameOverMusicSource;
+        private AudioSource movementSoundSource;
+        private AudioSource jumpSoundSource;
+        private float jumpSoundTimer;
         private Vector2 playerVelocity;
         private Vector3 cameraBasePosition;
         private float currentRiverHalfWidth = 7.1f;
@@ -202,11 +215,16 @@ namespace SalmonRun
                 ui.BackClicked += () => settingsOpen = false;
                 ui.RestartClicked += StartGame;
                 ui.LobbyClicked += ReturnToLobby;
-                ui.VolumeChanged += v => { masterVolume = v; AudioListener.volume = v; };
+                ui.ResumeClicked += () => SetPaused(false);
+                ui.PauseLobbyClicked += ReturnToLobby;
+                ui.VolumeChanged += v => bgmVolume = Mathf.Clamp01(v);
+                ui.EffectsVolumeChanged += SetEffectsVolume;
             }
-            AudioListener.volume = masterVolume;
+            AudioListener.volume = 1f;
 
             SetupLobbyMusic();
+            SetupMovementSound();
+            SetupJumpSound();
 
             SetTheme(1);
             ResetBackground();
@@ -228,7 +246,7 @@ namespace SalmonRun
             else
             {
                 lobbyMusicSource = gameObject.AddComponent<AudioSource>();
-                ConfigureMusicSource(lobbyMusicSource, lobbyMusic, lobbyMusicVolume);
+                ConfigureMusicSource(lobbyMusicSource, lobbyMusic, lobbyMusicVolume * bgmVolume);
                 lobbyMusicSource.Play();
             }
 
@@ -262,6 +280,87 @@ namespace SalmonRun
             source.volume = volume;
         }
 
+        private void SetupMovementSound()
+        {
+            if (movementSound == null)
+                movementSound = Resources.Load<AudioClip>("Audio/MovementSwim");
+            if (movementSound == null)
+            {
+                Debug.LogWarning("[SalmonGame] 이동 효과음을 찾을 수 없습니다: Resources/Audio/MovementSwim.mp3", this);
+                return;
+            }
+
+            movementSoundSource = gameObject.AddComponent<AudioSource>();
+            movementSoundSource.clip = movementSound;
+            movementSoundSource.loop = true;
+            movementSoundSource.playOnAwake = false;
+            movementSoundSource.spatialBlend = 0f;
+            movementSoundSource.volume = movementSoundVolume * effectsVolume;
+        }
+
+        private void SetupJumpSound()
+        {
+            if (jumpSound == null)
+                jumpSound = Resources.Load<AudioClip>("Audio/JumpSplash");
+            if (jumpSound == null)
+            {
+                Debug.LogWarning("[SalmonGame] 점프 효과음을 찾을 수 없습니다: Resources/Audio/JumpSplash.mp3", this);
+                return;
+            }
+
+            jumpSoundSource = gameObject.AddComponent<AudioSource>();
+            jumpSoundSource.clip = jumpSound;
+            jumpSoundSource.loop = false;
+            jumpSoundSource.playOnAwake = false;
+            jumpSoundSource.spatialBlend = 0f;
+            jumpSoundSource.volume = jumpSoundVolume * effectsVolume;
+        }
+
+        private void SetEffectsVolume(float value)
+        {
+            effectsVolume = Mathf.Clamp01(value);
+            if (movementSoundSource != null)
+                movementSoundSource.volume = movementSoundVolume * effectsVolume;
+            if (jumpSoundSource != null)
+                jumpSoundSource.volume = jumpSoundVolume * effectsVolume;
+        }
+
+        private void UpdateMovementSound(bool moving)
+        {
+            if (movementSoundSource == null) return;
+            if (moving)
+            {
+                if (!movementSoundSource.isPlaying) movementSoundSource.Play();
+            }
+            else if (movementSoundSource.isPlaying)
+            {
+                movementSoundSource.Stop();
+            }
+        }
+
+        private void PlayJumpSound()
+        {
+            if (jumpSoundSource == null) return;
+            jumpSoundSource.Stop();
+            jumpSoundSource.time = 0f;
+            jumpSoundSource.Play();
+            jumpSoundTimer = 0.72f;
+        }
+
+        private void UpdateJumpSound(float unscaledDt)
+        {
+            if (jumpSoundTimer <= 0f) return;
+            jumpSoundTimer -= unscaledDt;
+            if (jumpSoundTimer <= 0f && jumpSoundSource != null) jumpSoundSource.Stop();
+        }
+
+        private void StopControlSounds()
+        {
+            UpdateMovementSound(false);
+            jumpSoundTimer = 0f;
+            if (jumpSoundSource != null) jumpSoundSource.Stop();
+        }
+
         private void UpdateLobbyMusic(float dt)
         {
             var inLobby = state == GameState.Lobby;
@@ -277,7 +376,7 @@ namespace SalmonRun
                     lobbyMusicSource.Play();
                 }
                 lobbyMusicSource.volume = Mathf.MoveTowards(lobbyMusicSource.volume,
-                    inLobby ? lobbyMusicVolume : 0f, fadeStep);
+                    inLobby ? lobbyMusicVolume * bgmVolume : 0f, fadeStep);
                 if (!inLobby && lobbyMusicSource.isPlaying && lobbyMusicSource.volume <= 0.001f)
                     lobbyMusicSource.Stop();
             }
@@ -290,7 +389,7 @@ namespace SalmonRun
                     gameplayMusicSource.Play();
                 }
                 gameplayMusicSource.volume = Mathf.MoveTowards(gameplayMusicSource.volume,
-                    inGameplay ? gameplayMusicVolume : 0f, fadeStep);
+                    inGameplay ? gameplayMusicVolume * bgmVolume : 0f, fadeStep);
                 if (!inGameplay && gameplayMusicSource.isPlaying && gameplayMusicSource.volume <= 0.001f)
                     gameplayMusicSource.Stop();
             }
@@ -303,7 +402,7 @@ namespace SalmonRun
                     gameOverMusicSource.Play();
                 }
                 gameOverMusicSource.volume = Mathf.MoveTowards(gameOverMusicSource.volume,
-                    gameIsOver ? gameOverMusicVolume : 0f, fadeStep);
+                    gameIsOver ? gameOverMusicVolume * bgmVolume : 0f, fadeStep);
                 if (!gameIsOver && gameOverMusicSource.isPlaying && gameOverMusicSource.volume <= 0.001f)
                     gameOverMusicSource.Stop();
             }
@@ -312,19 +411,42 @@ namespace SalmonRun
         private void Update()
         {
             var dt = Mathf.Min(Time.deltaTime, 0.05f);
+            var keyboard = Keyboard.current;
+            if (state == GameState.Playing && keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
+                SetPaused(!paused);
+
             UpdateLobbyMusic(dt);
-            AnimateWater(dt);
-            UpdateEnvironmentTransition(dt);
-            UpdateJuice(dt);
-            if (state == GameState.Playing)
+            UpdateJumpSound(Time.unscaledDeltaTime);
+            if (!paused)
             {
-                ReadMovement(dt);
-                UpdateRun(dt);
-                UpdateHazards(dt);
-                CheckHazards(dt);
-                UpdateStage(dt);
+                AnimateWater(dt);
+                UpdateEnvironmentTransition(dt);
+                UpdateJuice(dt);
+                if (state == GameState.Playing)
+                {
+                    ReadMovement(dt);
+                    UpdateRun(dt);
+                    UpdateHazards(dt);
+                    CheckHazards(dt);
+                    UpdateStage(dt);
+                }
             }
             UpdateUI();
+            if (ui != null) ui.ShowPause(state == GameState.Playing && paused, bgmVolume, effectsVolume);
+        }
+
+        private void SetPaused(bool value)
+        {
+            paused = state == GameState.Playing && value;
+            if (paused) StopControlSounds();
+            Time.timeScale = paused ? 0f : 1f;
+            if (ui != null) ui.ShowPause(paused, bgmVolume, effectsVolume);
+        }
+
+        private void OnDisable()
+        {
+            StopControlSounds();
+            Time.timeScale = 1f;
         }
 
         private void AnimateWater(float dt)
@@ -363,11 +485,14 @@ namespace SalmonRun
                 if (keyboard.spaceKey.wasPressedThisFrame && jumpTimer <= 0f)
                 {
                     jumpTimer = 0.68f;
+                    PlayJumpSound();
                     shakeStrength = Mathf.Max(shakeStrength, 0.12f);
                     Burst(player.position + Vector3.down * 0.55f, new Color(0.72f, 0.94f, 1f), 9, 2.4f);
                     ShowEvent("JUMP!", 0.55f);
                 }
             }
+
+            UpdateMovementSound(input.sqrMagnitude > 0.01f);
 
             var slowed = IsInsideSlowZone();
             var speed = slowed ? 3.2f : 6.4f;
@@ -432,29 +557,6 @@ namespace SalmonRun
             // 빨리 헤엄칠수록, 점프 중일수록 꼬리가 빨라진다
             if (playerAnimator != null)
                 playerAnimator.SpeedScale = 1f + movementStretch * 0.9f + (jumpTimer > 0f ? 0.8f : 0f);
-
-            if (stage == 1)
-            {
-                waveTimer -= dt;
-                if (waveTimer <= 1.15f && !waveWarningShown)
-                {
-                    waveWarningShown = true;
-                    ShowEvent("큰 파도 접근!  점프하면 밀림 감소", 1.1f);
-                    shakeStrength = Mathf.Max(shakeStrength, 0.08f);
-                }
-                if (waveTimer <= 0f)
-                {
-                    waveTimer = Random.Range(6.5f, 9f);
-                    waveWarningShown = false;
-                    var push = jumpTimer > 0f ? 0.48f : 1.65f;
-                    player.position += Vector3.down * push;
-                    playerVelocity += Vector2.down * (jumpTimer > 0f ? 0.9f : 3.5f);
-                    shakeStrength = Mathf.Max(shakeStrength, 0.32f);
-                    Burst(player.position + Vector3.up, new Color(0.75f, 0.95f, 1f), 15, 4f);
-                    ShowEvent(jumpTimer > 0f ? "파도를 뛰어넘었습니다!  +30" : "파도가 밀어냅니다!", 1.5f);
-                    if (jumpTimer > 0f) score += 30;
-                }
-            }
 
             if (trailTimer <= 0f && playerVelocity.sqrMagnitude > 0.4f)
             {
@@ -744,6 +846,9 @@ namespace SalmonRun
 
         private void StartGame()
         {
+            StopControlSounds();
+            paused = false;
+            Time.timeScale = 1f;
             state = GameState.Playing;
             settingsOpen = false;
             stage = 1;
@@ -754,8 +859,6 @@ namespace SalmonRun
             stageTime = 0f;
             totalTime = 0f;
             spawnTimer = 1.2f;
-            waveTimer = 6f;
-            waveWarningShown = false;
             rewardTimer = 4.5f;
             treeTimer = 8f;
             fogTimer = 999f;
@@ -779,6 +882,9 @@ namespace SalmonRun
 
         private void EndGame()
         {
+            StopControlSounds();
+            paused = false;
+            Time.timeScale = 1f;
             state = GameState.GameOver;
             bestScore = Mathf.Max(bestScore, score);
             PlayerPrefs.SetInt("SalmonRunBest", bestScore);
@@ -787,6 +893,9 @@ namespace SalmonRun
 
         private void ReturnToLobby()
         {
+            StopControlSounds();
+            paused = false;
+            Time.timeScale = 1f;
             state = GameState.Lobby;
             settingsOpen = false;
             ClearHazards();
@@ -998,7 +1107,7 @@ namespace SalmonRun
             switch (state)
             {
                 case GameState.Lobby:
-                    ui.ShowLobby(bestScore, settingsOpen, masterVolume);
+                    ui.ShowLobby(bestScore, settingsOpen, bgmVolume, effectsVolume);
                     break;
                 case GameState.Playing:
                     ui.ShowHud(new SalmonUI.HudData
