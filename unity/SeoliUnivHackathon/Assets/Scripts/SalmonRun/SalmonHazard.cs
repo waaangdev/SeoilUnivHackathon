@@ -9,8 +9,15 @@ namespace SalmonRun
         ElectricEel, BearSwipe, SpinningNet
     }
 
+    /// <summary>
+    /// 장애물 하나. 종류별 크기·피해·기본 속도·수명은 프리팹(Prefabs/Hazards)에 저장되고,
+    /// 스폰 위치에 따라 달라지는 값만 SalmonGame.CreateHazard가 덮어쓴다.
+    /// </summary>
     public sealed class SalmonHazard : MonoBehaviour
     {
+        /// <summary>쓰러진 나무 프리팹의 기준 폭 (1스테이지 강폭 7.1 × 2 − 0.25)</summary>
+        public const float NominalFallenTreeWidth = 13.95f;
+
         public HazardKind Kind;
         public Vector2 Velocity;
         public float Radius = 0.7f;
