@@ -84,6 +84,10 @@ namespace SalmonRun
         [Tooltip("켜면 체력이 닳지 않는다 — 뒷 스테이지 확인용")]
         [SerializeField] private bool invincible;
 
+        [Header("점수")]
+        [Tooltip("장애물을 아슬아슬하게 스쳐 지나갈 때 주는 점수")]
+        [SerializeField] private int nearMissScore = 25;
+
         [Header("장애물 프리팹 (HazardKind 별 하나씩)")]
         [SerializeField] private List<SalmonHazard> hazardPrefabs = new();
 
@@ -618,9 +622,9 @@ namespace SalmonRun
                 if (!hazard.NearMissAwarded && !hazard.Hit && hazard.Damage > 0f && passedPlayer && closePass)
                 {
                     hazard.NearMissAwarded = true;
-                    score += 25;
+                    score += nearMissScore;
                     Burst(player.position, new Color(1f, 0.83f, 0.25f), 6, 1.8f);
-                    ShowEvent("아슬아슬!  +25", 0.75f);
+                    ShowEvent("아슬아슬!  +" + nearMissScore, 0.75f);
                 }
                 if (hazard.Life <= 0f || hazard.transform.position.y < WorldBottom - 2f ||
                     Mathf.Abs(hazard.transform.position.x) > HalfWidth + 4f)
@@ -775,7 +779,7 @@ namespace SalmonRun
             else
             {
                 var pool = new[] { HazardKind.Stone, HazardKind.Bird, HazardKind.Debris,
-                    HazardKind.DarkPool, HazardKind.Piranha, HazardKind.ElectricEel,
+                    HazardKind.DarkPool, HazardKind.Piranha,
                     HazardKind.BearSwipe, HazardKind.SpinningNet };
                 kind = pool[Random.Range(0, pool.Length)];
             }
@@ -788,7 +792,7 @@ namespace SalmonRun
             if (kind == HazardKind.Fog) { x = 0f; y = 0f; }
             CreateHazard(kind, new Vector2(x, y));
             var doublePattern = stage == 3 && nightLoop > 0 &&
-                                kind is HazardKind.Stone or HazardKind.DarkPool or HazardKind.ElectricEel &&
+                                kind is HazardKind.Stone or HazardKind.DarkPool &&
                                 Random.value < Mathf.Min(0.48f, nightLoop * 0.12f);
             if (doublePattern)
                 CreateHazard(kind, new Vector2(-x, y + Random.Range(1.7f, 2.8f)));

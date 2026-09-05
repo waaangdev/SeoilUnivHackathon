@@ -170,7 +170,7 @@ public static class SalmonSceneBuilder
         {
             var prefab = AssetDatabase.LoadAssetAtPath<SalmonHazard>($"{HazardFolder}/{kind}.prefab");
             if (prefab != null) prefabs.Add(prefab);
-            else Debug.LogWarning($"[SalmonSceneBuilder] 장애물 프리팹 없음: {kind}");
+            else if (!SalmonHazard.IsRetired(kind)) Debug.LogWarning($"[SalmonSceneBuilder] 장애물 프리팹 없음: {kind}");
         }
         SetArray(so.FindProperty("hazardPrefabs"), prefabs.ToArray());
         so.ApplyModifiedPropertiesWithoutUndo();

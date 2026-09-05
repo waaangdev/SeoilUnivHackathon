@@ -18,11 +18,22 @@ namespace SalmonRun
         /// <summary>쓰러진 나무 프리팹의 기준 폭 (1스테이지 강폭 7.1 × 2 − 0.25)</summary>
         public const float NominalFallenTreeWidth = 13.95f;
 
+        /// <summary>
+        /// 더 이상 쓰지 않는 장애물. HazardKind 에서 값을 빼면 뒤쪽 종류의 번호가 밀려
+        /// 이미 저장된 프리팹의 Kind 가 어긋나므로, 열거값은 남겨 두고 여기서만 걸러낸다.
+        /// </summary>
+        public static bool IsRetired(HazardKind kind)
+        {
+            return kind == HazardKind.ElectricEel;
+        }
+
         public HazardKind Kind;
         public Vector2 Velocity;
         public float Radius = 0.7f;
         public Vector2 HalfExtents;
         public float Damage;
+        [Tooltip("떠내려가는 속도 배율. 1이면 물살과 같은 속도, 작을수록 천천히 흘러간다")]
+        public float ScrollFactor = 1f;
         public float Life = 20f;
         public float InitialLife = 20f;
         public float Phase;
@@ -138,7 +149,7 @@ namespace SalmonRun
                 color.a = 0.82f * fade;
                 FogRenderer.color = color;
             }
-            transform.position += (Vector3)((movement + Vector2.down * scrollSpeed) * deltaTime);
+            transform.position += (Vector3)((movement + Vector2.down * (scrollSpeed * ScrollFactor)) * deltaTime);
         }
     }
 }
