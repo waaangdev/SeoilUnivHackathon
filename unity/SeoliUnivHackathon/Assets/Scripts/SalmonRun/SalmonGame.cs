@@ -36,6 +36,27 @@ namespace SalmonRun
         [SerializeField] private Transform flowSparkRoot;
         [SerializeField] private SalmonUI ui;
 
+        [Header("배경 이미지")]
+        [SerializeField] private SalmonBackground background;
+        [Tooltip("스테이지 1 · 외해")]
+        [SerializeField] private Sprite seaBackground;
+        [Tooltip("바다 → 강 전환 구간에서 한 번만 지나가는 해안")]
+        [SerializeField] private Sprite coastBackground;
+        [Tooltip("스테이지 2·3 · 강")]
+        [SerializeField] private Sprite riverBackground;
+
+        [Header("테스트 — 플레이 중에도 인스펙터에서 바로 조절된다")]
+        [Tooltip("한 스테이지가 끝나기까지의 시간(초). 기본 34")]
+        [SerializeField] private float stageDuration = 34f;
+        [Tooltip("진행 속도 배율. 스크롤·장애물·배경이 함께 빨라진다")]
+        [Range(0.25f, 5f)]
+        [SerializeField] private float speedMultiplier = 1f;
+        [Tooltip("장애물 스폰 간격 배율. 값이 작을수록 빽빽해진다")]
+        [Range(0.2f, 3f)]
+        [SerializeField] private float spawnIntervalMultiplier = 1f;
+        [Tooltip("켜면 체력이 닳지 않는다 — 뒷 스테이지 확인용")]
+        [SerializeField] private bool invincible;
+
         [Header("장애물 프리팹 (HazardKind 별 하나씩)")]
         [SerializeField] private List<SalmonHazard> hazardPrefabs = new();
 
@@ -85,16 +106,53 @@ namespace SalmonRun
         private Color targetWaterColor;
         private Color targetBankColor;
         private Color targetCameraColor;
+        private float currentTintAlpha = 0.14f;
+        private float targetTintAlpha = 0.14f;
+        private bool coastTileSpawned;
+        private bool coastPending;
         private string transitionText = "";
 
-        private const float StageDuration = 34f;
         private const float WorldTop = 10.5f;
         private const float WorldBottom = -10.5f;
 
-        private float ScrollSpeed => 4.65f + (stage - 1) * 0.58f + nightLoop * 0.28f;
+        private float StageDuration => Mathf.Max(1f, stageDuration);
+        private float ScrollSpeed =>
+            (4.65f + (stage - 1) * 0.58f + nightLoop * 0.28f) * Mathf.Max(0.05f, speedMultiplier);
         private int EndlessDifficulty => stage < 3 ? 0 : nightLoop + 1;
         private float HalfWidth => gameCamera.orthographicSize * gameCamera.aspect;
         private float RiverHalfWidth => Mathf.Min(HalfWidth - 1.1f, currentRiverHalfWidth);
+
+        /// <summary>배경 타일이 내려가는 속도. 물결 반짝임과 같은 속도라야 화면이 하나로 움직인다.</summary>
+        public float BackgroundScrollSpeed => state == GameState.Playing ? ScrollSpeed : 1.1f;
+
+        /// <summary>
+        /// 화면 위로 새로 올라가는 배경 타일에 어떤 그림을 넣을지 정한다.
+        /// travelSeconds 는 그 타일이 화면을 가로지르는 데 걸리는 시간 — 이걸로
+        /// 스테이지가 바뀌는 순간에 해안 그림이 딱 한 번 지나가도록 미리 앞당겨 배정한다.
+        /// </summary>
+        public Sprite BackgroundSpriteForNextTile(float travelSeconds, bool canSwitch)
+        {
+            if (state != GameState.Playing) return SpriteForStage(stage);
+            if (coastTileSpawned) return SpriteForStage(stage);
+            if (coastBackground == null) return SpriteForStage(stage);
+
+            // 스테이지 1이 끝나갈 무렵 해안을 '예약'한다. 스테이지가 이미 넘어갔다면 즉시 예약 —
+            // 전환 가능한 타일은 두 장에 한 번뿐이라, 시간만 보고 판단하면 기회를 놓쳐 건너뛴다.
+            if (stage >= 2 || StageDuration - stageTime <= travelSeconds) coastPending = true;
+            if (!coastPending) return seaBackground;
+
+            // 아직 그림을 바꿀 수 없는 타일이면 바다를 한 장 더 깔고 다음 타일에서 전환한다
+            if (!canSwitch) return seaBackground;
+
+            coastTileSpawned = true;
+            return coastBackground;
+        }
+
+        private Sprite SpriteForStage(int targetStage)
+        {
+            var sprite = targetStage == 1 ? seaBackground : riverBackground;
+            return sprite != null ? sprite : seaBackground;
+        }
 
         private void Awake()
         {
@@ -131,6 +189,7 @@ namespace SalmonRun
             AudioListener.volume = masterVolume;
 
             SetTheme(1);
+            ResetBackground();
         }
 
         private void Update()
@@ -300,7 +359,8 @@ namespace SalmonRun
             {
                 SpawnHazard();
                 var baseInterval = stage == 1 ? 1.12f : stage == 2 ? 0.90f : 0.82f;
-                spawnTimer = Mathf.Max(0.42f, baseInterval - nightLoop * 0.06f) * Random.Range(0.75f, 1.25f);
+                spawnTimer = Mathf.Max(0.42f, baseInterval - nightLoop * 0.06f) * Random.Range(0.75f, 1.25f)
+                             * Mathf.Max(0.05f, spawnIntervalMultiplier);
             }
         }
 
@@ -414,7 +474,7 @@ namespace SalmonRun
 
         private void DealDamage(float amount, string message)
         {
-            if (amount <= 0f || damageCooldown > 0f) return;
+            if (amount <= 0f || damageCooldown > 0f || invincible) return;
             health = Mathf.Max(0f, health - amount);
             damageCooldown = 0.8f;
             hurtFlash = 0.55f;
@@ -423,6 +483,24 @@ namespace SalmonRun
             Burst(player.position, new Color(1f, 0.22f, 0.16f), 14, 3.8f);
             ShowEvent(message + "  -" + Mathf.RoundToInt(amount), 1f);
             if (health <= 0f) EndGame();
+        }
+
+        // 컴포넌트 헤더 우클릭 메뉴. 플레이 중에 눌러 원하는 구간을 바로 확인한다.
+        [ContextMenu("테스트: 다음 스테이지로")]
+        private void DebugSkipStage()
+        {
+            stageTime = StageDuration;
+        }
+
+        [ContextMenu("테스트: 바다→강 전환 직전으로")]
+        private void DebugJumpToCoast()
+        {
+            stage = 1;
+            nightLoop = 0;
+            coastTileSpawned = false;
+            coastPending = false;
+            SetTheme(1);
+            stageTime = StageDuration - (28.1f / ScrollSpeed) - 0.4f;
         }
 
         private void UpdateStage(float dt)
@@ -565,6 +643,7 @@ namespace SalmonRun
             ClearJuice();
             ClearHazards();
             SetTheme(1);
+            ResetBackground();
         }
 
         private void EndGame()
@@ -583,6 +662,7 @@ namespace SalmonRun
             stage = 1;
             nightLoop = 0;
             SetTheme(1);
+            ResetBackground();
             player.position = new Vector3(0f, -5.8f, 0f);
             player.localScale = Vector3.one;
             playerVelocity = Vector2.zero;
@@ -598,37 +678,51 @@ namespace SalmonRun
         private void SetTheme(int targetStage)
         {
             GetTheme(targetStage, out currentWaterColor, out currentBankColor, out currentCameraColor,
-                out currentRiverHalfWidth);
+                out currentRiverHalfWidth, out currentTintAlpha);
             targetWaterColor = currentWaterColor;
             targetBankColor = currentBankColor;
             targetCameraColor = currentCameraColor;
             targetRiverHalfWidth = currentRiverHalfWidth;
+            targetTintAlpha = currentTintAlpha;
             terrainTransitionTimer = 0f;
             ApplyEnvironment();
+        }
+
+        /// <summary>배경 타일을 첫 스테이지(바다)로 되돌리고 해안 전환 그림을 다시 쓸 수 있게 한다.</summary>
+        private void ResetBackground()
+        {
+            coastTileSpawned = false;
+            coastPending = false;
+            if (background != null) background.ResetTiles();
         }
 
         private void BeginEnvironmentTransition(int targetStage)
         {
             GetTheme(targetStage, out targetWaterColor, out targetBankColor, out targetCameraColor,
-                out targetRiverHalfWidth);
+                out targetRiverHalfWidth, out targetTintAlpha);
             terrainTransitionTimer = 6.5f;
         }
 
-        private void GetTheme(int targetStage, out Color water, out Color bank, out Color camera, out float riverWidth)
+        private void GetTheme(int targetStage, out Color water, out Color bank, out Color camera, out float riverWidth,
+            out float tintAlpha)
         {
+            // riverWidth 는 배경 그림에 실제로 그려진 물길에 맞춘 값이다.
+            // 강 그림(941px)의 가장 좁은 물길은 293~690px → 타일 폭 34유닛 기준 약 14.3유닛(반폭 7.1).
             if (targetStage == 1)
             {
                 water = new Color(0.06f, 0.55f, 0.76f);
                 bank = new Color(0.23f, 0.60f, 0.36f);
                 camera = new Color(0.50f, 0.82f, 0.91f);
-                riverWidth = 7.1f;
+                riverWidth = 10.5f;   // 육지가 없는 외해 — 넓게 쓴다
+                tintAlpha = 0.14f;
             }
             else if (targetStage == 2)
             {
                 water = new Color(0.13f, 0.39f, 0.52f);
                 bank = new Color(0.50f, 0.31f, 0.18f);
                 camera = new Color(0.94f, 0.43f, 0.25f);
-                riverWidth = 6.45f;
+                riverWidth = 7.0f;
+                tintAlpha = 0.30f;    // 노을빛
             }
             else
             {
@@ -636,7 +730,8 @@ namespace SalmonRun
                 water = Color.Lerp(new Color(0.035f, 0.18f, 0.31f), new Color(0.012f, 0.07f, 0.16f), darkness);
                 bank = Color.Lerp(new Color(0.09f, 0.14f, 0.17f), new Color(0.035f, 0.06f, 0.09f), darkness);
                 camera = Color.Lerp(new Color(0.025f, 0.045f, 0.12f), new Color(0.008f, 0.012f, 0.05f), darkness);
-                riverWidth = Mathf.Max(5.55f, 6.05f - nightLoop * 0.035f);
+                riverWidth = Mathf.Max(6.4f, 7.0f - nightLoop * 0.035f);
+                tintAlpha = Mathf.Min(0.82f, 0.68f + darkness * 0.8f);   // 밤
             }
         }
 
@@ -649,6 +744,7 @@ namespace SalmonRun
                 currentBankColor = Color.Lerp(currentBankColor, targetBankColor, step);
                 currentCameraColor = Color.Lerp(currentCameraColor, targetCameraColor, step);
                 currentRiverHalfWidth = Mathf.Lerp(currentRiverHalfWidth, targetRiverHalfWidth, step);
+                currentTintAlpha = Mathf.Lerp(currentTintAlpha, targetTintAlpha, step);
                 terrainTransitionTimer = Mathf.Max(0f, terrainTransitionTimer - dt);
                 if (terrainTransitionTimer <= 0f)
                 {
@@ -656,6 +752,7 @@ namespace SalmonRun
                     currentBankColor = targetBankColor;
                     currentCameraColor = targetCameraColor;
                     currentRiverHalfWidth = targetRiverHalfWidth;
+                    currentTintAlpha = targetTintAlpha;
                 }
             }
             ApplyEnvironment();
@@ -663,13 +760,23 @@ namespace SalmonRun
 
         private void ApplyEnvironment()
         {
-            waterRenderer.color = currentWaterColor;
+            // 배경 그림이 깔려 있으면 Water 사각형은 그 위에 얹히는 '분위기 보정' 레이어가 된다.
+            // (Water 오브젝트 자체는 지우면 안 된다 — Awake 의 씬 참조 검사에서 게임이 멈춘다)
+            var usingArt = background != null && background.HasTiles;
+            // 그림 위에 얹을 때는 하늘빛(아침 하늘 / 노을 / 밤)을 써야 시간대가 읽힌다.
+            // 그림이 없으면 예전처럼 물 색을 그대로 칠한다.
+            var tint = usingArt ? currentCameraColor : currentWaterColor;
+            tint.a = usingArt ? currentTintAlpha : 1f;
+            waterRenderer.color = tint;
             gameCamera.backgroundColor = currentCameraColor;
             for (var i = 0; i < bankRenderers.Length; i++)
             {
                 var renderer = bankRenderers[i];
                 if (renderer == null) continue;
-                renderer.color = currentBankColor;
+                // 강둑은 그림에 이미 그려져 있으므로 절차적 강둑은 숨긴다
+                var bankColor = currentBankColor;
+                bankColor.a = usingArt ? 0f : 1f;
+                renderer.color = bankColor;
                 var sign = i == 0 ? -1f : 1f;
                 renderer.transform.position = new Vector3(sign * (RiverHalfWidth + 6f), 0f, 0f);
                 renderer.transform.localScale = new Vector3(12f, 22f, 1f);
@@ -677,7 +784,8 @@ namespace SalmonRun
             for (var i = 0; i < laneRenderers.Length; i++)
             {
                 if (laneRenderers[i] == null) continue;
-                laneRenderers[i].color = new Color(1f, 1f, 1f, stage == 3 ? 0.035f : 0.08f);
+                var laneAlpha = usingArt ? 0f : (stage == 3 ? 0.035f : 0.08f);
+                laneRenderers[i].color = new Color(1f, 1f, 1f, laneAlpha);
                 laneRenderers[i].transform.position = new Vector3((i - 1) * RiverHalfWidth * 0.52f, 0f, 0f);
             }
         }

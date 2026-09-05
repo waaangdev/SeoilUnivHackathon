@@ -26,6 +26,15 @@ public static class SalmonSceneBuilder
     const string FontPath = "Assets/Art/Fonts/Pretendard-Bold SDF.asset";
     const string GameRootName = "Salmon Run";
 
+    // 배경 아트 — 941×779. PPU 27.7 → 34.0 × 28.1 유닛 (화면 32×18 + 카메라 흔들림 여유)
+    const string RiverBgPath = "Assets/Art/Sprites/background1.png";
+    const string CoastBgPath = "Assets/Art/Sprites/background2.png";
+    const string SeaBgPath = "Assets/Art/Sprites/background3.png";
+    const float BackgroundPpu = 27.7f;
+    // 강 그림의 물길(293~690px)이 화면 중앙에 오도록 타일 전체를 살짝 왼쪽으로
+    const float BackgroundOffsetX = -0.76f;
+    const int BackgroundTileCount = 3;
+
     static Sprite white, circle, fog;
     static TMP_FontAsset font;
 
@@ -68,6 +77,9 @@ public static class SalmonSceneBuilder
         // ---- World ----
         var world = new GameObject("World").transform;
         world.SetParent(root.transform, false);
+
+        var background = BuildBackground(world, out var backgroundTiles, out var seaSprite, out var coastSprite,
+            out var riverSprite);
 
         var water = WorldRect("Water", world, Vector2.zero, new Vector2(36f, 22f), new Color(0.08f, 0.56f, 0.75f), -20);
         var leftBank = WorldRect("Left Bank", world, new Vector2(-13.1f, 0f), new Vector2(12f, 22f), new Color(0.25f, 0.57f, 0.35f), -10);
@@ -117,6 +129,16 @@ public static class SalmonSceneBuilder
         SetArray(so.FindProperty("laneRenderers"), lanes.ToArray());
         so.FindProperty("flowSparkRoot").objectReferenceValue = sparkRoot;
         so.FindProperty("ui").objectReferenceValue = ui;
+        so.FindProperty("background").objectReferenceValue = background;
+        so.FindProperty("seaBackground").objectReferenceValue = seaSprite;
+        so.FindProperty("coastBackground").objectReferenceValue = coastSprite;
+        so.FindProperty("riverBackground").objectReferenceValue = riverSprite;
+
+        var bso = new SerializedObject(background);
+        bso.FindProperty("game").objectReferenceValue = game;
+        SetArray(bso.FindProperty("tiles"), backgroundTiles);
+        bso.FindProperty("viewHalfHeight").floatValue = camera.orthographicSize;
+        bso.ApplyModifiedPropertiesWithoutUndo();
 
         var prefabs = new List<Object>();
         foreach (HazardKind kind in System.Enum.GetValues(typeof(HazardKind)))
@@ -132,6 +154,48 @@ public static class SalmonSceneBuilder
         EditorSceneManager.MarkSceneDirty(root.scene);
         Selection.activeGameObject = root;
         Debug.Log("[SalmonSceneBuilder] 씬 구성 완료 — 장애물 프리팹 " + prefabs.Count + "개 연결");
+    }
+
+    // ================================================================ 배경 이미지
+
+    /// <summary>
+    /// 배경 아트 3장을 임포트 설정까지 맞춘 뒤, 세로로 쌓인 타일 3장과 SalmonBackground 를 만든다.
+    /// 타일은 정렬 순서 -40 — 물 보정 레이어(-20)와 게임플레이(2~45) 아래에 깔린다.
+    /// </summary>
+    static SalmonBackground BuildBackground(Transform world, out Object[] tiles,
+        out Sprite sea, out Sprite coast, out Sprite river)
+    {
+        ConfigureSprite(SeaBgPath, BackgroundPpu);
+        ConfigureSprite(CoastBgPath, BackgroundPpu);
+        ConfigureSprite(RiverBgPath, BackgroundPpu);
+        sea = AssetDatabase.LoadAssetAtPath<Sprite>(SeaBgPath);
+        coast = AssetDatabase.LoadAssetAtPath<Sprite>(CoastBgPath);
+        river = AssetDatabase.LoadAssetAtPath<Sprite>(RiverBgPath);
+        if (sea == null || coast == null || river == null)
+            Debug.LogWarning("[SalmonSceneBuilder] 배경 이미지를 못 읽었습니다. " +
+                             "Assets/Art/Sprites/background1~3.png 를 확인하세요.");
+
+        var root = new GameObject("Background");
+        root.transform.SetParent(world, false);
+        root.transform.localPosition = new Vector3(BackgroundOffsetX, 0f, 0f);
+        var scroller = root.AddComponent<SalmonBackground>();
+
+        // 런타임 SalmonBackground.seamOverlap 과 같은 값만큼 겹쳐 둔다
+        var height = (sea != null ? sea.bounds.size.y : 28.1f) - 0.12f;
+        var renderers = new List<Object>();
+        for (var i = 0; i < BackgroundTileCount; i++)
+        {
+            var go = new GameObject("Background Tile " + (i + 1));
+            go.transform.SetParent(root.transform, false);
+            go.transform.localPosition = new Vector3(0f, (i - (BackgroundTileCount - 1) * 0.5f) * height, 0f);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = sea;
+            sr.flipY = (i & 1) == 1;
+            sr.sortingOrder = -40;
+            renderers.Add(sr);
+        }
+        tiles = renderers.ToArray();
+        return scroller;
     }
 
     // ================================================================ 카메라 / EventSystem
