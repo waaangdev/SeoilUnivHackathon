@@ -143,6 +143,13 @@ public static class SalmonSceneBuilder
         so.FindProperty("riverBackground").objectReferenceValue = riverSprite;
         so.FindProperty("treeLayer").objectReferenceValue = treeLayer;
 
+        // 음악·효과음 (YHR 브랜치) — 비어 있으면 런타임에 Resources 에서 다시 찾지만 씬에도 걸어 둔다
+        so.FindProperty("lobbyMusic").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(LobbyMusicPath);
+        so.FindProperty("gameplayMusic").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(GameplayMusicPath);
+        so.FindProperty("gameOverMusic").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(GameOverMusicPath);
+        so.FindProperty("movementSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(MovementSoundPath);
+        so.FindProperty("jumpSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(JumpSoundPath);
+
         if (treeLayer != null)
         {
             var tso = new SerializedObject(treeLayer);
